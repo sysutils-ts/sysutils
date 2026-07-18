@@ -48,6 +48,12 @@ Measured on a Surface Pro X (Windows 11 ARM64 + WSL2 Ubuntu ARM64):
 | `@sysutils/ps-dotnet` AOT (all fields) | ~24 ms | n/a |
 | `@sysutils/ps-dotnet` single-file (pid, ppid, name) | ~480 ms | ~180 ms |
 
+> **Why `n/a` for .NET AOT on Windows?** .NET Native AOT must be built on the
+> target OS/architecture (or with a matching cross-compiler). The Windows .NET
+> binaries were cross-published from WSL/Linux, which only supports single-file
+> self-contained output, not Native AOT. To get AOT numbers on Windows we need a
+> Windows build host with the .NET SDK and MSVC C++ build tools.
+
 Key findings:
 
 - **Linux:** .NET Native AOT is the fastest option (~24 ms), beating the Rust
