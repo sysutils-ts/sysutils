@@ -1,8 +1,9 @@
-import { spawn, type ChildProcessByStdio } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn, type ChildProcess, type ChildProcessByStdio } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
 import type { Readable as ReadableStream } from "node:stream";
+import { fileURLToPath } from "node:url";
 
 export interface ProcessInfo {
   pid: number;
@@ -11,6 +12,7 @@ export interface ProcessInfo {
   command?: string;
   memory?: number;
   cpu?: number;
+  [key: string]: unknown;
 }
 
 export interface PsOptions {
@@ -25,19 +27,8 @@ const BACKEND_PACKAGES: Record<SupportedBackend, string> = {
   dotnet: "@sysutils/ps-dotnet",
 };
 
-function tryResolve(path: string): URL | undefined {
-  try {
-    return new URL(import.meta.resolve(path));
-  } catch {
-    return undefined;
-  }
-}
-
-function binaryPathForPackageRoot(packageRoot: URL): string {
-  const platform = process.platform;
-  const arch = process.arch;
-  const binaryName = platform === "win32" ? "ps.exe" : "ps";
-  return new URL(`./bin/${platform}/${arch}/${binaryName}`, packageRoot).pathname;
+export interface ProcessStream extends ReadableStream {
+  process: ChildProcess;
 }
 
 function backendFromEnv(): SupportedBackend | undefined {
@@ -46,14 +37,43 @@ function backendFromEnv(): SupportedBackend | undefined {
   return undefined;
 }
 
+function readBinariesMap(
+  packageName: string,
+): Record<string, string> | undefined {
+  try {
+    const packageJsonUrl = new URL(
+      import.meta.resolve(`${packageName}/package.json`),
+    );
+    const binariesUrl = new URL("./binaries.json", packageJsonUrl);
+    return JSON.parse(
+      readFileSync(fileURLToPath(binariesUrl), "utf8"),
+    ) as Record<string, string>;
+  } catch {
+    return undefined;
+  }
+}
+
 export function getBinaryPath(
   backend: SupportedBackend = "rust",
 ): string | undefined {
   const packageName = BACKEND_PACKAGES[backend];
-  const packageRoot = tryResolve(`${packageName}/package.json`);
-  if (!packageRoot) return undefined;
-  const binaryPath = binaryPathForPackageRoot(packageRoot);
-  return existsSync(binaryPath) ? binaryPath : undefined;
+  const binaries = readBinariesMap(packageName);
+  if (!binaries) return undefined;
+
+  const key = `${process.platform}-${process.arch}`;
+  const rel = binaries[key];
+  if (!rel) return undefined;
+
+  try {
+    const packageJsonUrl = new URL(
+      import.meta.resolve(`${packageName}/package.json`),
+    );
+    const binaryUrl = new URL(rel, packageJsonUrl);
+    const binaryPath = fileURLToPath(binaryUrl);
+    return existsSync(binaryPath) ? binaryPath : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function resolveBackend(options?: PsOptions): SupportedBackend {
@@ -63,16 +83,16 @@ function resolveBackend(options?: PsOptions): SupportedBackend {
     if (getBinaryPath(backend)) return backend;
   }
   throw new Error(
-    "No @sysutils/ps backend found. Install @sysutils/ps-rust or @sysutils/ps-dotnet.",
+    "No @sysutils/ps backend found. Install @sysutils/ps-rust or @sysutils/ps-dotnet and build the native binary.",
   );
 }
 
-export function createProcessStream(options?: PsOptions): ReadableStream {
+export function createProcessStream(options?: PsOptions): ProcessStream {
   const backend = resolveBackend(options);
   const binaryPath = getBinaryPath(backend);
   if (!binaryPath) {
     throw new Error(
-      `Backend ${backend} was selected but its binary is missing.`,
+      `Backend "${backend}" was selected but its native binary is missing. Run the build for ${BACKEND_PACKAGES[backend]}.`,
     );
   }
 
@@ -86,27 +106,56 @@ export function createProcessStream(options?: PsOptions): ReadableStream {
     stdio: ["ignore", "pipe", "pipe"],
   }) as ChildProcessByStdio<null, ReadableStream, ReadableStream>;
 
-  async function* generateProcesses() {
-    for await (const line of createInterface(child.stdout)) {
-      yield JSON.parse(line) as ProcessInfo;
-    }
-  }
+  const parser = createInterface({
+    input: child.stdout,
+    crlfDelay: Infinity,
+  });
 
-  const stream = Readable.from(generateProcesses(), { objectMode: true });
+  const stream = new Readable({ objectMode: true, read() {} }) as ProcessStream;
+  stream.process = child;
+
+  parser.on("line", (line) => {
+    if (!line) return;
+    try {
+      const obj = JSON.parse(line) as ProcessInfo;
+      stream.push(obj);
+    } catch (err) {
+      stream.emit(
+        "parseError",
+        err instanceof Error ? err : new Error(String(err)),
+      );
+    }
+  });
+
+  parser.on("close", () => {
+    if (!stream.destroyed) {
+      stream.push(null);
+    }
+  });
 
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk: string) => {
-    stream.emit("warning", new Error(`backend stderr: ${chunk.trim()}`));
+    stream.emit("stderr", chunk);
   });
 
-  stream.once("close", () => {
-    if (!child.killed) child.kill();
+  child.on("error", (err) => {
+    parser.close();
+    stream.destroy(err);
+  });
+
+  child.on("close", (code) => {
+    parser.close();
+    if (code !== 0 && !stream.destroyed) {
+      stream.destroy(new Error(`ps backend exited with code ${code}`));
+    }
   });
 
   return stream;
 }
 
-export async function listProcesses(options?: PsOptions): Promise<ProcessInfo[]> {
+export async function listProcesses(
+  options?: PsOptions,
+): Promise<ProcessInfo[]> {
   const result: ProcessInfo[] = [];
   for await (const proc of createProcessStream(options)) {
     result.push(proc);

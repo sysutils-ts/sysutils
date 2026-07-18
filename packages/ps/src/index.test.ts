@@ -8,5 +8,15 @@ test("getBinaryPath returns undefined when no native binary is built", () => {
 });
 
 test("createProcessStream throws when no backend is available", () => {
-  assert.throws(() => createProcessStream(), /No @sysutils\/ps backend found/);
+  assert.throws(
+    () => createProcessStream(),
+    /No @sysutils\/ps backend found/,
+  );
+});
+
+test("createProcessStream throws for a missing explicit backend", () => {
+  assert.throws(
+    () => createProcessStream({ backend: "dotnet" }),
+    /native binary is missing/,
+  );
 });

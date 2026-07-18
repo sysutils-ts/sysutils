@@ -1,34 +1,30 @@
 {
   "name": "@sysutils/ps-dotnet",
-  "version": "0.0.0",
-  "description": "Native .NET backend for @sysutils/ps.",
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
-    }
-  },
-  "files": [
-    "bin",
-    "index.js",
-    "index.d.ts",
-    "binaries.json",
-    "*.csproj",
-    "Program.cs"
-  ],
-  "scripts": {
-    "build": "dotnet publish -c Release -o ./bin/intermediate",
-    "build:all": "node scripts/build-all.js",
-    "test": "dotnet test --no-build --verbosity minimal"
-  },
+  "version": "0.1.0",
+  "description": "Native .NET backend for @sysutils/ps",
+  "main": "index.js",
+  "type": "commonjs",
   "os": [
-    "darwin",
+    "win32",
     "linux",
-    "win32"
+    "darwin"
   ],
   "cpu": [
     "x64",
     "arm64"
-  ]
+  ],
+  "files": [
+    "bin/",
+    "index.js",
+    "index.d.ts",
+    "binaries.json",
+    "SysUtils.Ps.csproj",
+    "Program.cs"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:all": "node scripts/build-all.js",
+    "test": "dotnet test tests/SysUtils.Ps.Tests.csproj"
+  },
+  "license": "MIT"
 }

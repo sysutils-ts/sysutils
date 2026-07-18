@@ -1,6 +1,6 @@
 {
   "name": "@sysutils/ps-rust",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Native Rust backend for @sysutils/ps.",
   "type": "module",
   "exports": {
@@ -18,7 +18,7 @@
     "src"
   ],
   "scripts": {
-    "build": "cargo build --release --bin ps",
+    "build": "node scripts/build.js",
     "build:all": "node scripts/build-all.js",
     "test": "cargo test"
   },
