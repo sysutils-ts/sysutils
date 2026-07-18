@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Threading;
 
 namespace SysUtils.Ps;
@@ -82,7 +81,26 @@ internal sealed class ProcessRecord
                 return;
             }
             sb.Append('"');
-            sb.Append(JavaScriptEncoder.UnsafeRelaxedJsonEscaping.Encode(value));
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+                if (c == '"') sb.Append("\\\"");
+                else if (c == '\\') sb.Append("\\\\");
+                else if (c == '\b') sb.Append("\\b");
+                else if (c == '\f') sb.Append("\\f");
+                else if (c == '\n') sb.Append("\\n");
+                else if (c == '\r') sb.Append("\\r");
+                else if (c == '\t') sb.Append("\\t");
+                else if (c < 0x20) sb.Append($"\\u{(int)c:x4}");
+                else if (char.IsHighSurrogate(c) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+                {
+                    sb.Append(c).Append(value[++i]);
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
             sb.Append('"');
         }
 

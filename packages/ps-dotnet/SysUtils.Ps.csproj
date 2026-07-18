@@ -14,6 +14,14 @@
     <PublishSingleFile Condition="'$(PublishAot)' != 'true'">true</PublishSingleFile>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <StackTraceSupport>false</StackTraceSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <IlcDisableReflection>true</IlcDisableReflection>
+    <IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
+  </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="SysUtils.Ps.Tests" />
   </ItemGroup>
