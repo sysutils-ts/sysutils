@@ -25,7 +25,7 @@ Both approaches ship the same surface area:
 |---|---|---|
 | **Language / runtime** | No runtime; compiled to native machine code. | Native AOT or single-file self-contained; still carries a small runtime. |
 | **Binary size** | ~400–520 KB after `strip` and `lto`. | ~950 KB–1.3 MB with Native AOT; single-file can be larger. |
-| **Process APIs** | `sysinfo` crate abstracts Windows (`CreateToolhelp32Snapshot`), Linux (`/proc`), and macOS (`libproc`). | Manual P/Invoke to `kernel32`, `libSystem.dylib`, and parsing `/proc`. More code per platform. |
+| **Process APIs** | `sysinfo` crate abstracts Windows (`CreateToolhelp32Snapshot`), Linux (`/proc`), and macOS (`libproc`). | `NtQuerySystemInformation` on Windows, raw `/proc` parsing on Linux, `libproc` on macOS. More code per platform. |
 | **Cross-compilation** | Needs `cargo-zigbuild` + `zig` or per-OS runners. `rustup target` adds targets easily. | `dotnet publish -r <RID>` from a single Linux runner works for many RIDs; Windows Native AOT requires a Windows build host with MSVC. |
 | **Build speed** | Slower first build; `cargo` incremental builds are fast. | `dotnet` builds are generally faster and cached via NuGet. |
 | **Startup latency** | Very fast; no runtime initialization. | Very fast after Native AOT; beats the Rust `sysinfo` implementation on Linux and ARM64 Windows. |
@@ -44,8 +44,8 @@ Measured on a Surface Pro X (Windows 11 ARM64 + WSL2 Ubuntu ARM64):
 | `fastlist` (pid, ppid, name) | n/a | ~37 ms (x64 emulation) |
 | `@sysutils/ps-rust` (pid, ppid, name) | ~69 ms | ~52 ms (x64 emulation) |
 | `@sysutils/ps-rust` (all fields) | ~64 ms | ~79 ms (x64 emulation) |
-| `@sysutils/ps-dotnet` AOT (pid, ppid, name) | ~36 ms | **~35 ms (arm64)**, ~53 ms (x64 emulation) |
-| `@sysutils/ps-dotnet` AOT (all fields) | ~36 ms | **~35 ms (arm64)** |
+| `@sysutils/ps-dotnet` AOT (pid, ppid, name) | ~20 ms | **~28 ms (arm64)**, ~53 ms (x64 emulation) |
+| `@sysutils/ps-dotnet` AOT (all fields) | ~24 ms | **~29 ms (arm64)** |
 | `@sysutils/ps-dotnet` single-file (pid, ppid, name) | ~480 ms | ~180 ms (x64 emulation) |
 | `tasklist` | n/a | ~360 ms |
 | `powershell Get-CimInstance` | n/a | ~950 ms |
@@ -64,20 +64,20 @@ Measured on the same builds:
 | `fastlist-0.3.0-x64.exe` | ~266 KB |
 | `@sysutils/ps-rust` win-x64 | ~397 KB |
 | `@sysutils/ps-rust` linux-arm64 | ~517 KB |
-| `@sysutils/ps-dotnet` AOT win-arm64 | ~949 KB |
+| `@sysutils/ps-dotnet` AOT win-arm64 | ~822 KB |
 | `@sysutils/ps-dotnet` AOT win-x64 | ~1.05 MB |
-| `@sysutils/ps-dotnet` AOT linux-arm64 | ~1.3 MB |
+| `@sysutils/ps-dotnet` AOT linux-arm64 | ~1.16 MB |
 
 Key findings:
 
-- **Linux:** .NET Native AOT is the fastest option (~36 ms), beating the Rust
-  `sysinfo` implementation by roughly 2x. The AOT binary outputs JSON with
+- **Linux:** .NET Native AOT is the fastest option (~24 ms), beating the Rust
+  `sysinfo` implementation by roughly 3x. The AOT binary outputs JSON with
   `command`, `memory`, and `cpu` at no extra cost because the Linux `/proc`
   reader already gathers those fields.
 - **Windows:** .NET Native AOT built natively on ARM64 Windows is the fastest
-  feature-complete option (~35 ms), ahead of the Rust x64-emulated build (~52 ms)
+  feature-complete option (~28 ms), ahead of the Rust x64-emulated build (~52 ms)
   and within reach of x64 `fastlist` (~37 ms). .NET single-file on Windows pays
-  a JIT/startup penalty and is ~3x slower.
+  a JIT/startup penalty and is ~6x slower.
 - **Node wrapper overhead** is small: `listProcesses` from `@sysutils/ps` adds
   ~10–20 ms to the native binary time.
 - `ps-list`/`fastlist` does not support Windows ARM64, which is one reason we

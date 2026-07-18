@@ -1,15 +1,16 @@
-using System.Collections.Generic;
+using System.IO;
 using System.Text.Json;
 using Xunit;
 
 namespace SysUtils.Ps.Tests;
 
-public class ProcessRecordTests
+public class JsonWriterTests
 {
     [Fact]
-    public void ToJson_WithNoFields_IncludesAllFields()
+    public void Write_WithNoFieldFilter_IncludesAllFields()
     {
-        var r = new ProcessRecord
+        var sw = new StringWriter();
+        JsonWriter.Write(sw, new ProcessInfo
         {
             Pid = 42,
             Ppid = 1,
@@ -17,9 +18,8 @@ public class ProcessRecordTests
             Command = "node app.js",
             Memory = 1024,
             Cpu = 0.5,
-        };
-        var json = r.ToJson(null);
-        var doc = JsonDocument.Parse(json);
+        }, ProcessField.All);
+        var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal(42, doc.RootElement.GetProperty("pid").GetInt32());
         Assert.Equal(1, doc.RootElement.GetProperty("ppid").GetInt32());
         Assert.Equal("node", doc.RootElement.GetProperty("name").GetString());
@@ -29,9 +29,10 @@ public class ProcessRecordTests
     }
 
     [Fact]
-    public void ToJson_WithFields_OnlyIncludesRequested()
+    public void Write_WithFieldFilter_OnlyIncludesRequested()
     {
-        var r = new ProcessRecord
+        var sw = new StringWriter();
+        JsonWriter.Write(sw, new ProcessInfo
         {
             Pid = 7,
             Ppid = 2,
@@ -39,10 +40,8 @@ public class ProcessRecordTests
             Command = "/bin/bash",
             Memory = 2048,
             Cpu = 1.0,
-        };
-        var fields = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "pid", "name" };
-        var json = r.ToJson(fields);
-        var doc = JsonDocument.Parse(json);
+        }, ProcessField.Pid | ProcessField.Name);
+        var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal(7, doc.RootElement.GetProperty("pid").GetInt32());
         Assert.Equal("bash", doc.RootElement.GetProperty("name").GetString());
         Assert.False(doc.RootElement.TryGetProperty("ppid", out _));
@@ -52,34 +51,50 @@ public class ProcessRecordTests
     }
 
     [Fact]
-    public void ToJson_PreservesNullValues()
+    public void Write_PreservesNullValues()
     {
-        var r = new ProcessRecord { Pid = 1, Ppid = 0, Name = "x", Command = null, Memory = null, Cpu = null };
-        var json = r.ToJson(null);
-        var doc = JsonDocument.Parse(json);
+        var sw = new StringWriter();
+        JsonWriter.Write(sw, new ProcessInfo
+        {
+            Pid = 1,
+            Ppid = 0,
+            Name = "x",
+            Command = null,
+            Memory = -1,
+            Cpu = -1,
+        }, ProcessField.All);
+        var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal(1, doc.RootElement.GetProperty("pid").GetInt32());
         Assert.Equal(0, doc.RootElement.GetProperty("ppid").GetInt32());
         Assert.True(doc.RootElement.TryGetProperty("command", out var cmd));
-        Assert.Equal(System.Text.Json.JsonValueKind.Null, cmd.ValueKind);
+        Assert.Equal(JsonValueKind.Null, cmd.ValueKind);
+        Assert.True(doc.RootElement.TryGetProperty("memory", out var mem));
+        Assert.Equal(JsonValueKind.Null, mem.ValueKind);
+        Assert.True(doc.RootElement.TryGetProperty("cpu", out var cpu));
+        Assert.Equal(JsonValueKind.Null, cpu.ValueKind);
     }
 }
 
 public class OptionsTests
 {
     [Fact]
-    public void Parse_DefaultHasNoFields()
+    public void Parse_DefaultReturnsAllFields()
     {
         var o = Options.Parse(System.Array.Empty<string>());
-        Assert.Null(o.Fields);
+        Assert.Equal(ProcessField.All, o.Fields);
     }
 
     [Fact]
     public void Parse_FieldsAreParsed()
     {
         var o = Options.Parse(new[] { "--fields", "pid,name" });
-        Assert.NotNull(o.Fields);
-        Assert.Contains("pid", o.Fields);
-        Assert.Contains("name", o.Fields);
-        Assert.DoesNotContain("ppid", o.Fields);
+        Assert.Equal(ProcessField.Pid | ProcessField.Name, o.Fields);
+    }
+
+    [Fact]
+    public void Parse_UnknownFieldsFallbackToAll()
+    {
+        var o = Options.Parse(new[] { "--fields", "nonsense" });
+        Assert.Equal(ProcessField.All, o.Fields);
     }
 }
