@@ -5,6 +5,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const distDir = path.resolve(__dirname, '..', 'dist');
+if (!fs.existsSync(distDir)) {
+  console.error(`Test dist directory does not exist: ${distDir}\nRun \`npm run build\` in @sysutils/ps first.`);
+  process.exit(1);
+}
 const files = fs
   .readdirSync(distDir)
   .filter((name) => name.endsWith('.test.mjs'))
