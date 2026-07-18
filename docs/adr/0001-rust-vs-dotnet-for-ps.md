@@ -61,6 +61,7 @@ Measured on the same builds:
 
 | Binary | Size |
 |---|---|
+| `fastlist-0.3.0-x64.exe` | ~266 KB |
 | `@sysutils/ps-rust` win-x64 | ~397 KB |
 | `@sysutils/ps-rust` linux-arm64 | ~517 KB |
 | `@sysutils/ps-dotnet` AOT win-arm64 | ~2.1 MB |
