@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted, with runtime caveats
 
 ## Context
 
@@ -22,8 +22,10 @@ shared C# file while removing spawn overhead.
 
 Add a package `@sysutils/ps-dotnet-nodeapi` that builds a managed .NET assembly
 exposing `PsModule.ListProcesses(fields)` and load it with `node-api-dotnet`.
-`@sysutils/ps` will use this in-process backend as the default when available,
-fallback to the `@sysutils/ps-dotnet` CLI otherwise.
+`@sysutils/ps` will keep the `@sysutils/ps-dotnet` CLI as the default backend
+and use the in-process backend only when explicitly requested (`backend:
+"dotnet-nodeapi"`) until `node-api-dotnet` resolves its Node-API shutdown
+instability on Node.js >= 24.14.0.
 
 The assembly returns a JSON-lines string so the Node side can reuse the existing
 parser and `ProcessInfo` normalization.
@@ -93,7 +95,10 @@ fields are `null` when not available.
 
 - Requires the .NET 8 runtime to be installed on the target system.
 - `node-api-dotnet` is pre-1.0; API churn possible.
-- The CLI backend must still be built and tested as a fallback.
+- `node-api-dotnet` 0.9.21 has an open Node-API shutdown bug on Node.js >=
+  24.14.0 that can crash or hang the process on exit, so the in-process backend
+  is opt-in for now.
+- The CLI backend must still be built and tested as the default/fallback.
 
 ## Measured results
 

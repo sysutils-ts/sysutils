@@ -102,7 +102,7 @@ export function getBinaryPath(
 function resolveBackend(options?: PsOptions): SupportedBackend {
   const requested = options?.backend ?? backendFromEnv() ?? "auto";
   if (requested !== "auto") return requested;
-  const order: SupportedBackend[] = ["dotnet-nodeapi", "dotnet"];
+  const order: SupportedBackend[] = ["dotnet", "dotnet-nodeapi"];
   for (const backend of order) {
     if (getBinaryPath(backend)) return backend;
   }

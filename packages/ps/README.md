@@ -85,7 +85,16 @@ interface ProcessInfo {
 
 ## Backends
 
-| backend         | package                       | type                                         |
-| --------------- | ----------------------------- | -------------------------------------------- |
-| .NET CLI        | `@sysutils/ps-dotnet`         | Native AOT executable (spawn)                |
-| .NET in-process | `@sysutils/ps-dotnet-nodeapi` | Managed assembly loaded by `node-api-dotnet` |
+| backend         | package                       | type                                         | default |
+| --------------- | ----------------------------- | -------------------------------------------- | ------- |
+| .NET CLI        | `@sysutils/ps-dotnet`         | Native AOT executable (spawn)                | yes     |
+| .NET in-process | `@sysutils/ps-dotnet-nodeapi` | Managed assembly loaded by `node-api-dotnet` | no      |
+
+The .NET CLI backend is selected by default. The in-process backend is faster
+but is currently opt-in because `node-api-dotnet` 0.9.21 has an open Node-API
+shutdown bug on Node.js >= 24.14.0 that can crash or hang the process on exit.
+
+```ts
+// Opt in to the in-process backend
+const procs = await listProcesses({ backend: "dotnet-nodeapi" });
+```
