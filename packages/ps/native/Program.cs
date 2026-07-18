@@ -235,6 +235,37 @@ internal static class JsonWriter
     }
 }
 
+internal static class NativeHelpers
+{
+    public static IntPtr GrowBuffer(IntPtr buffer, ref int size, int maxSize, string context)
+    {
+        if (size > maxSize)
+            throw new OutOfMemoryException($"{context} buffer exceeded maximum size.");
+        var newSize = size * 2;
+        var newBuffer = Marshal.AllocHGlobal(newSize);
+        Marshal.FreeHGlobal(buffer);
+        size = newSize;
+        return newBuffer;
+    }
+
+    public static void WriteProcessInfo(TextWriter writer, ProcessField fields, int pid, int ppid, string? name = null, string? path = null)
+    {
+        var info = new ProcessInfo
+        {
+            Pid = pid,
+            Ppid = ppid,
+            Uid = -1,
+            Name = name,
+            Cmd = null,
+            Path = path,
+            StartTime = null,
+            Memory = -1,
+            Cpu = -1,
+        };
+        JsonWriter.Write(writer, info, fields);
+    }
+}
+
 internal static class WindowsReader
 {
     private const int SystemProcessInformationClass = 5;
@@ -286,13 +317,7 @@ internal static class WindowsReader
                 if (status >= 0) break;
                 if (status == STATUS_INFO_LENGTH_MISMATCH)
                 {
-                    if (size > MaxBufferSize)
-                        throw new OutOfMemoryException("Process information buffer exceeded maximum size.");
-                    var newSize = size * 2;
-                    var newBuffer = Marshal.AllocHGlobal(newSize);
-                    Marshal.FreeHGlobal(buffer);
-                    buffer = newBuffer;
-                    size = newSize;
+                    buffer = NativeHelpers.GrowBuffer(buffer, ref size, MaxBufferSize, "Process information");
                     continue;
                 }
                 throw new InvalidOperationException($"NtQuerySystemInformation failed: 0x{status & 0xFFFFFFFF:X8}");
@@ -309,21 +334,7 @@ internal static class WindowsReader
                     name = Marshal.PtrToStringUni(p->ImageName.Buffer, p->ImageName.Length / 2);
 
                 if (pid != 0)
-                {
-                    var info = new ProcessInfo
-                    {
-                        Pid = pid,
-                        Ppid = ppid,
-                        Uid = -1,
-                        Name = name,
-                        Cmd = null,
-                        Path = null,
-                        StartTime = null,
-                        Memory = -1,
-                        Cpu = -1,
-                    };
-                    JsonWriter.Write(writer, info, fields);
-                }
+                    NativeHelpers.WriteProcessInfo(writer, fields, pid, ppid, name);
 
                 if (p->NextEntryOffset == 0) break;
                 p = (SystemProcessInformation*)((byte*)p + p->NextEntryOffset);
@@ -404,6 +415,12 @@ internal static class LinuxReader
         return 1;
     }
 
+    private static byte[]? ReadProcFile(string dir, string file)
+    {
+        try { return File.ReadAllBytes(Path.Combine(dir, file)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
     private static void WriteOne(TextWriter writer, int pid, string dir, double pageSize, double ticks, double uptime, long bootTime, double totalMem, ProcessField fields)
     {
         var wantsName = (fields & ProcessField.Name) != 0 || fields == 0;
@@ -417,7 +434,10 @@ internal static class LinuxReader
 
         string? comm = null;
         if (wantsName)
-            comm = DecodeUtf8Trim(File.ReadAllBytes(Path.Combine(dir, "comm")));
+        {
+            var commBytes = ReadProcFile(dir, "comm");
+            if (commBytes != null) comm = DecodeUtf8Trim(commBytes);
+        }
 
         string? path = null;
         if (wantsName || wantsPath)
@@ -433,16 +453,25 @@ internal static class LinuxReader
 
         string? cmd = null;
         if (wantsCmd)
-            cmd = DecodeCmdline(File.ReadAllBytes(Path.Combine(dir, "cmdline"))) ?? string.Empty;
+        {
+            var cmdBytes = ReadProcFile(dir, "cmdline");
+            cmd = cmdBytes != null ? DecodeCmdline(cmdBytes) ?? string.Empty : string.Empty;
+        }
 
         int uid = -1;
         if (wantsUid)
-            uid = ParseStatusUid(File.ReadAllBytes(Path.Combine(dir, "status")));
+        {
+            var statusBytes = ReadProcFile(dir, "status");
+            if (statusBytes != null) uid = ParseStatusUid(statusBytes);
+        }
 
         StatInfo stat = default;
         var statOk = false;
         if (wantsPpid || wantsMemory || wantsCpu || wantsStartTime)
-            statOk = TryParseStat(File.ReadAllBytes(Path.Combine(dir, "stat")), out stat);
+        {
+            var statBytes = ReadProcFile(dir, "stat");
+            statOk = statBytes != null && TryParseStat(statBytes, out stat);
+        }
 
         string? name = null;
         if (wantsName)
@@ -690,13 +719,7 @@ internal static class MacReader
                 used = proc_listpids(1, 0, pids, size);
                 if (used < 0) throw new InvalidOperationException("proc_listpids failed");
                 if (used < size) break;
-                if (size > MaxBufferSize)
-                    throw new OutOfMemoryException("PID buffer exceeded maximum size.");
-                var newSize = size * 2;
-                var newPids = Marshal.AllocHGlobal(newSize);
-                Marshal.FreeHGlobal(pids);
-                pids = newPids;
-                size = newSize;
+                pids = NativeHelpers.GrowBuffer(pids, ref size, MaxBufferSize, "PID");
             }
 
             var count = used / 4;
@@ -727,19 +750,7 @@ internal static class MacReader
                         }
                     }
 
-                    var p = new ProcessInfo
-                    {
-                        Pid = pid,
-                        Ppid = ppid,
-                        Uid = -1,
-                        Name = name,
-                        Cmd = null,
-                        Path = path,
-                        StartTime = null,
-                        Memory = -1,
-                        Cpu = -1,
-                    };
-                    JsonWriter.Write(writer, p, fields);
+                    NativeHelpers.WriteProcessInfo(writer, fields, pid, ppid, name, path);
                 }
             }
             finally
