@@ -6,6 +6,9 @@ use std::io::{self, BufWriter, Write};
 use std::process::ExitCode;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
+#[cfg(windows)]
+mod windows_fast;
+
 const FIELDS: &[&str] = &["pid", "ppid", "name", "command", "memory", "cpu"];
 
 #[derive(Serialize)]
@@ -35,47 +38,40 @@ fn parse_fields(args: &[String]) -> Option<BTreeSet<String>> {
     Some(set)
 }
 
+fn has_field(fields: Option<&BTreeSet<String>>, name: &str) -> bool {
+    fields.map_or(true, |f| f.contains(name))
+}
+
+fn build_process_info(
+    fields: Option<&BTreeSet<String>>,
+    pid: u32,
+    ppid: Option<u32>,
+    name: Option<String>,
+    command: Option<String>,
+    memory: Option<u64>,
+    cpu: Option<f32>,
+) -> ProcessInfo {
+    ProcessInfo {
+        pid,
+        ppid: if has_field(fields, "ppid") { ppid } else { None },
+        name: if has_field(fields, "name") { name } else { None },
+        command: if has_field(fields, "command") { command } else { None },
+        memory: if has_field(fields, "memory") { memory } else { None },
+        cpu: if has_field(fields, "cpu") { cpu } else { None },
+    }
+}
+
 fn process_info(
     pid: &Pid,
     process: &sysinfo::Process,
     fields: Option<&BTreeSet<String>>,
 ) -> ProcessInfo {
-    let has = |name: &str| fields.map_or(true, |f| f.contains(name));
-
-    let ppid = if has("ppid") {
-        process.parent().map(|p| p.as_u32())
-    } else {
-        None
-    };
-    let name = if has("name") {
-        Some(process.name().to_string_lossy().into_owned())
-    } else {
-        None
-    };
-    let command = if has("command") {
-        join_cmd(process.cmd())
-    } else {
-        None
-    };
-    let memory = if has("memory") {
-        Some(process.memory())
-    } else {
-        None
-    };
-    let cpu = if has("cpu") {
-        Some(process.cpu_usage())
-    } else {
-        None
-    };
-
-    ProcessInfo {
-        pid: pid.as_u32(),
-        ppid,
-        name,
-        command,
-        memory,
-        cpu,
-    }
+    let ppid = process.parent().map(|p| p.as_u32());
+    let name = Some(process.name().to_string_lossy().into_owned());
+    let command = join_cmd(process.cmd());
+    let memory = Some(process.memory());
+    let cpu = Some(process.cpu_usage());
+    build_process_info(fields, pid.as_u32(), ppid, name, command, memory, cpu)
 }
 
 fn join_cmd(argv: &[OsString]) -> Option<String> {
@@ -94,15 +90,78 @@ fn join_cmd(argv: &[OsString]) -> Option<String> {
     Some(out)
 }
 
-fn refresh_kind() -> ProcessRefreshKind {
-    ProcessRefreshKind::everything()
-        .without_user()
-        .without_disk_usage()
-        .without_exe()
-        .with_cmd(UpdateKind::OnlyIfNotSet)
+fn refresh_kind(fields: Option<&BTreeSet<String>>) -> ProcessRefreshKind {
+    let mut kind = ProcessRefreshKind::nothing()
         .with_environ(UpdateKind::Never)
         .with_root(UpdateKind::Never)
-        .with_cwd(UpdateKind::Never)
+        .with_cwd(UpdateKind::Never);
+
+    if has_field(fields, "command") {
+        kind = kind.with_cmd(UpdateKind::OnlyIfNotSet);
+    } else {
+        kind = kind.with_cmd(UpdateKind::Never);
+    }
+    if has_field(fields, "memory") {
+        kind = kind.with_memory();
+    } else {
+        kind = kind.without_memory();
+    }
+    if has_field(fields, "cpu") {
+        kind = kind.with_cpu();
+    } else {
+        kind = kind.without_cpu();
+    }
+    kind
+}
+
+#[cfg(windows)]
+fn can_use_snapshot(fields: Option<&BTreeSet<String>>) -> bool {
+    // The ToolHelp snapshot gives us pid/ppid/name without opening every process.
+    if fields.is_none() {
+        return false;
+    }
+    fields
+        .unwrap()
+        .iter()
+        .all(|f| matches!(f.as_str(), "pid" | "ppid" | "name"))
+}
+
+#[cfg(not(windows))]
+#[allow(dead_code)]
+fn can_use_snapshot(_fields: Option<&BTreeSet<String>>) -> bool {
+    false
+}
+
+fn collect_with_sysinfo(fields: Option<&BTreeSet<String>>) -> Result<Vec<ProcessInfo>, String> {
+    let refresh = refresh_kind(fields);
+    let mut sys = System::new_with_specifics(
+        sysinfo::RefreshKind::nothing().with_processes(refresh),
+    );
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, refresh);
+
+    let mut processes: Vec<(&Pid, &sysinfo::Process)> = sys.processes().iter().collect();
+    processes.sort_by_key(|(pid, _)| pid.as_u32());
+
+    Ok(processes
+        .into_iter()
+        .map(|(pid, process)| process_info(pid, process, fields))
+        .collect())
+}
+
+fn write_processes(processes: &[ProcessInfo]) -> Result<(), String> {
+    let stdout = io::stdout().lock();
+    let mut out = BufWriter::with_capacity(16 * 1024, stdout);
+
+    for info in processes {
+        serde_json::to_writer(&mut out, info).map_err(|e| e.to_string())?;
+        out.write_all(b"\n").map_err(|e| e.to_string())?;
+    }
+
+    out.flush().map_err(|e| e.to_string())?;
+    if processes.is_empty() {
+        eprintln!("no processes found");
+    }
+    Ok(())
 }
 
 fn run() -> Result<(), String> {
@@ -115,27 +174,17 @@ fn run() -> Result<(), String> {
         }
     }
 
-    let mut sys = System::new();
-    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, refresh_kind());
-
-    let stdout = io::stdout().lock();
-    let mut out = BufWriter::with_capacity(16 * 1024, stdout);
-
-    let mut processes: Vec<(&Pid, &sysinfo::Process)> = sys.processes().iter().collect();
-    processes.sort_by_key(|(pid, _)| pid.as_u32());
-
-    let count = processes.len();
-    for (pid, process) in &processes {
-        let info = process_info(pid, process, fields.as_ref());
-        serde_json::to_writer(&mut out, &info).map_err(|e| e.to_string())?;
-        out.write_all(b"\n").map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    if can_use_snapshot(fields.as_ref()) {
+        let stdout = io::stdout().lock();
+        let mut out = BufWriter::with_capacity(16 * 1024, stdout);
+        windows_fast::write_snapshot_processes(fields.as_ref(), &mut out)?;
+        out.flush().map_err(|e| e.to_string())?;
+        return Ok(());
     }
 
-    out.flush().map_err(|e| e.to_string())?;
-    if count == 0 {
-        eprintln!("no processes found");
-    }
-    Ok(())
+    let processes = collect_with_sysinfo(fields.as_ref())?;
+    write_processes(&processes)
 }
 
 fn main() -> ExitCode {

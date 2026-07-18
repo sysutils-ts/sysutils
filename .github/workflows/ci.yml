@@ -60,4 +60,4 @@ jobs:
         with:
           node-version: 24
       - run: npm install
-      - run: dotnet publish packages/ps-dotnet -c Release -r ${{ matrix.rid }} -p:PublishSingleFile=true -p:SelfContained=true
+      - run: dotnet publish packages/ps-dotnet -c Release -r ${{ matrix.rid }}

@@ -41,10 +41,9 @@ function readBinariesMap(
   packageName: string,
 ): Record<string, string> | undefined {
   try {
-    const packageJsonUrl = new URL(
-      import.meta.resolve(`${packageName}/package.json`),
-    );
-    const binariesUrl = new URL("./binaries.json", packageJsonUrl);
+    const entryUrl = new URL(import.meta.resolve(packageName));
+    const packageRoot = new URL(".", entryUrl);
+    const binariesUrl = new URL("./binaries.json", packageRoot);
     return JSON.parse(
       readFileSync(fileURLToPath(binariesUrl), "utf8"),
     ) as Record<string, string>;
@@ -65,10 +64,9 @@ export function getBinaryPath(
   if (!rel) return undefined;
 
   try {
-    const packageJsonUrl = new URL(
-      import.meta.resolve(`${packageName}/package.json`),
-    );
-    const binaryUrl = new URL(rel, packageJsonUrl);
+    const entryUrl = new URL(import.meta.resolve(packageName));
+    const packageRoot = new URL(".", entryUrl);
+    const binaryUrl = new URL(rel, packageRoot);
     const binaryPath = fileURLToPath(binaryUrl);
     return existsSync(binaryPath) ? binaryPath : undefined;
   } catch {
@@ -79,7 +77,10 @@ export function getBinaryPath(
 function resolveBackend(options?: PsOptions): SupportedBackend {
   const requested = options?.backend ?? backendFromEnv() ?? "auto";
   if (requested !== "auto") return requested;
-  for (const backend of ["rust", "dotnet"] as SupportedBackend[]) {
+  // .NET AOT is fastest on Linux, Rust is fastest on Windows/macOS.
+  const order: SupportedBackend[] =
+    process.platform === "linux" ? ["dotnet", "rust"] : ["rust", "dotnet"];
+  for (const backend of order) {
     if (getBinaryPath(backend)) return backend;
   }
   throw new Error(

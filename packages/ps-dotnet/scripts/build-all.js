@@ -25,9 +25,6 @@ function build(target) {
     '-c', 'Release',
     '-r', target.rid,
     '-o', outDir,
-    '-p:PublishSingleFile=true',
-    '-p:SelfContained=true',
-    '-p:TrimMode=partial',
     '-p:AssemblyName=ps',
     '--nologo',
   ];

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json;
+using System.Text.Encodings.Web;
 using System.Threading;
 
 namespace SysUtils.Ps;
@@ -72,17 +72,73 @@ internal sealed class ProcessRecord
 
     public string ToJson(HashSet<string>? fields)
     {
-        var dict = new Dictionary<string, object?>();
         bool Has(string f) => fields == null || fields.Contains(f);
 
-        if (Has("pid")) dict["pid"] = Pid;
-        if (Has("ppid")) dict["ppid"] = Ppid;
-        if (Has("name")) dict["name"] = Name;
-        if (Has("command")) dict["command"] = Command;
-        if (Has("memory")) dict["memory"] = Memory;
-        if (Has("cpu")) dict["cpu"] = Cpu;
+        static void AppendString(StringBuilder sb, string? value)
+        {
+            if (value == null)
+            {
+                sb.Append("null");
+                return;
+            }
+            sb.Append('"');
+            sb.Append(JavaScriptEncoder.UnsafeRelaxedJsonEscaping.Encode(value));
+            sb.Append('"');
+        }
 
-        return JsonSerializer.Serialize(dict);
+        var sb = new StringBuilder(128);
+        sb.Append('{');
+        bool first = true;
+
+        if (Has("pid"))
+        {
+            sb.Append("\"pid\":").Append(Pid);
+            first = false;
+        }
+
+        if (Has("ppid"))
+        {
+            if (!first) sb.Append(',');
+            sb.Append("\"ppid\":").Append(Ppid);
+            first = false;
+        }
+
+        if (Has("name"))
+        {
+            if (!first) sb.Append(',');
+            sb.Append("\"name\":");
+            AppendString(sb, Name);
+            first = false;
+        }
+
+        if (Has("command"))
+        {
+            if (!first) sb.Append(',');
+            sb.Append("\"command\":");
+            AppendString(sb, Command);
+            first = false;
+        }
+
+        if (Has("memory"))
+        {
+            if (!first) sb.Append(',');
+            sb.Append("\"memory\":");
+            if (Memory.HasValue) sb.Append(Memory.Value);
+            else sb.Append("null");
+            first = false;
+        }
+
+        if (Has("cpu"))
+        {
+            if (!first) sb.Append(',');
+            sb.Append("\"cpu\":");
+            if (Cpu.HasValue) sb.Append(Cpu.Value);
+            else sb.Append("null");
+            first = false;
+        }
+
+        sb.Append('}');
+        return sb.ToString();
     }
 }
 
