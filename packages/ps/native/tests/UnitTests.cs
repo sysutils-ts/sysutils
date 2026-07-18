@@ -97,6 +97,41 @@ public class JsonWriterTests
     }
 }
 
+public class PsModuleTests
+{
+    [Fact]
+    public void ListProcesses_EmptyFields_ReturnsDefaultProcessSet()
+    {
+        var json = PsModule.ListProcesses("");
+        Assert.False(string.IsNullOrWhiteSpace(json));
+        var lines = json.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(lines.Length > 0, "Expected at least one process");
+        foreach (var line in lines)
+        {
+            using var doc = JsonDocument.Parse(line);
+            Assert.True(doc.RootElement.TryGetProperty("pid", out _));
+            Assert.True(doc.RootElement.TryGetProperty("ppid", out _));
+            Assert.True(doc.RootElement.TryGetProperty("name", out _));
+        }
+    }
+
+    [Fact]
+    public void ListProcesses_FieldFilter_ReturnsOnlyRequestedFields()
+    {
+        var json = PsModule.ListProcesses("pid,name");
+        Assert.False(string.IsNullOrWhiteSpace(json));
+        var lines = json.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(lines.Length > 0, "Expected at least one process");
+        foreach (var line in lines)
+        {
+            using var doc = JsonDocument.Parse(line);
+            Assert.True(doc.RootElement.TryGetProperty("pid", out _));
+            Assert.True(doc.RootElement.TryGetProperty("name", out _));
+            Assert.False(doc.RootElement.TryGetProperty("ppid", out _));
+        }
+    }
+}
+
 public class OptionsTests
 {
     [Fact]
