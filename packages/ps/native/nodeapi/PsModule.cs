@@ -14,16 +14,7 @@ public static class PsModule
             ? Options.Parse(Array.Empty<string>())
             : Options.Parse(new[] { "--fields", fields });
         using var writer = new StringWriter();
-
-        if (OperatingSystem.IsWindows())
-            WindowsReader.Write(writer, opts.Fields);
-        else if (OperatingSystem.IsLinux())
-            LinuxReader.Write(writer, opts.Fields);
-        else if (OperatingSystem.IsMacOS())
-            MacReader.Write(writer, opts.Fields);
-        else
-            throw new PlatformNotSupportedException();
-
+        ProcessWriter.Write(writer, opts.Fields);
         return writer.ToString();
     }
 }

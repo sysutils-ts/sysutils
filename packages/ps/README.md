@@ -191,8 +191,8 @@ Measured on a Surface Pro X (Windows 11 ARM64 + WSL2 Ubuntu ARM64, Node.js
 
 | Backend                                            | Mean `listProcesses()`                         | Notes                                            |
 | -------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------ |
-| `@sysutils/ps` CLI spawn + JSON parse              | ~28 ms (Windows), similar on Linux             | Limited to `pid`, `ppid`, and `name`             |
-| `@sysutils/ps` in-proc + JSON parse                | ~6 ms (Windows), ~0.8 ms (Linux)               | Limited to `pid`, `ppid`, and `name`; opt-in due to upstream shutdown bug |
+| `@sysutils/ps` CLI spawn + JSON parse              | ~28 ms (Windows), similar on Linux             | Measured with fields limited to `pid`, `ppid`, and `name`             |
+| `@sysutils/ps` in-proc + JSON parse                | ~6 ms (Windows), ~0.8 ms (Linux)               | Measured with fields limited to `pid`, `ppid`, and `name`; opt-in due to upstream shutdown bug |
 | `ps-list`                                          | unsupported on Windows ARM64, ~7.8 ms on Linux | Spawns `ps` and parses fixed output              |
 
 The in-process backend is roughly **4–35× faster** than the CLI spawn path and

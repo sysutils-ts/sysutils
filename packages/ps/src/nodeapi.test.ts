@@ -14,13 +14,18 @@ test("listProcesses works with dotnet-nodeapi when the assembly is available", a
     t.skip("dotnet-nodeapi assembly not built");
     return;
   }
+  // Omit `fields` to exercise the PsModule.ListProcesses("") default-field path.
   const procs = await listProcesses({
     backend: "dotnet-nodeapi",
-    fields: ["pid", "name"],
   });
   assert.ok(procs.length > 0);
   assert.ok(
-    procs.every((p) => typeof p.pid === "number" && typeof p.name === "string"),
+    procs.every(
+      (p) =>
+        typeof p.pid === "number" &&
+        typeof p.ppid === "number" &&
+        typeof p.name === "string",
+    ),
   );
 
   // Force a clean exit because node-api-dotnet may keep the .NET host alive.

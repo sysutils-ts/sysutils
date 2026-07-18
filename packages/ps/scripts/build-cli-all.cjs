@@ -1,8 +1,8 @@
 'use strict';
 
-const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { publishProject, runBuilds } = require('./build-native-all-base.cjs');
 
 const RIDS = [
   { rid: 'win-x64', platform: 'win32', arch: 'x64', bin: 'ps.exe' },
@@ -15,24 +15,11 @@ const RIDS = [
 
 const projectRoot = path.resolve(__dirname, '..');
 const projectFile = path.join(projectRoot, 'native', 'cli', 'SysUtils.Ps.csproj');
-const publishBase = path.join(projectRoot, 'bin');
 
 function build(target) {
-  console.log(`Building ${target.rid} ...`);
-  const outDir = path.join(publishBase, 'publish', target.rid);
-  const args = [
-    'publish',
-    projectFile,
-    '-c', 'Release',
-    '-r', target.rid,
-    '-o', outDir,
-    '--nologo',
-  ];
-  const r = spawnSync('dotnet', args, { stdio: 'inherit' }); // NOSONAR: dotnet is the .NET SDK CLI resolved from PATH; args are generated internally
-  if (r.status !== 0) {
-    console.error(`dotnet publish failed for ${target.rid}`);
-    return false;
-  }
+  const outDir = path.join(projectRoot, 'bin', 'publish', target.rid);
+  if (!publishProject(target, projectFile, outDir)) return false;
+
   const destDir = path.join(projectRoot, 'bin', target.platform, target.arch);
   fs.mkdirSync(destDir, { recursive: true });
   const src = path.join(outDir, target.bin);
@@ -43,14 +30,4 @@ function build(target) {
   return true;
 }
 
-function main() {
-  const only = process.argv.slice(2);
-  const targets = only.length ? RIDS.filter(t => only.includes(t.rid)) : RIDS;
-  let ok = true;
-  for (const t of targets) {
-    if (!build(t)) ok = false;
-  }
-  process.exit(ok ? 0 : 1);
-}
-
-main();
+runBuilds(RIDS, build);
