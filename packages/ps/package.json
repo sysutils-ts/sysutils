@@ -1,7 +1,7 @@
 {
   "name": "@sysutils/ps",
   "version": "0.1.0",
-  "description": "Cross-platform process listing as a Node.js Readable stream.",
+  "description": "Fast, cross-platform process listing as a Node.js Readable stream.",
   "type": "module",
   "exports": {
     ".": {
@@ -10,10 +10,15 @@
     }
   },
   "files": [
+    "binaries.json",
     "dist/index.mjs",
     "dist/index.mjs.map",
     "dist/index.d.mts",
-    "dist/index.d.mts.map"
+    "dist/index.d.mts.map",
+    "bin/win32/*/ps.exe",
+    "bin/linux/*/ps",
+    "bin/darwin/*/ps",
+    "bin/nodeapi/**/*"
   ],
   "tsdown": {
     "entry": [
@@ -25,12 +30,15 @@
   },
   "scripts": {
     "build": "tsdown",
+    "build:tsdown": "tsdown",
+    "build:cli": "node scripts/build-cli.cjs",
+    "build:nodeapi": "node scripts/build-nodeapi.cjs",
+    "build:all": "node scripts/build-cli-all.cjs && node scripts/build-nodeapi-all.cjs && tsdown",
     "test": "node --test dist/index.test.mjs",
+    "test:dotnet": "dotnet test native/tests/SysUtils.Ps.Tests.csproj",
     "typecheck": "tsc --noEmit"
   },
   "optionalDependencies": {
-    "@sysutils/ps-dotnet": "^0.1.0",
-    "@sysutils/ps-dotnet-nodeapi": "^0.1.0",
     "node-api-dotnet": "0.9.21"
   },
   "devDependencies": {

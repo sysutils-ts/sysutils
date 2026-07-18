@@ -8,11 +8,15 @@
     <RootNamespace>SysUtils.Ps</RootNamespace>
     <AssemblyName>ps</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <DefaultItemExcludes>$(DefaultItemExcludes);tests\**\*;tests/**/*</DefaultItemExcludes>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <SelfContained>true</SelfContained>
     <PublishAot Condition="'$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' == '$(NETCoreSdkRuntimeIdentifier)'">true</PublishAot>
     <PublishSingleFile Condition="'$(PublishAot)' != 'true'">true</PublishSingleFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Program.cs" Link="Program.cs" />
+  </ItemGroup>
 
   <PropertyGroup Condition="'$(PublishAot)' == 'true'">
     <IlcOptimizationPreference>Speed</IlcOptimizationPreference>

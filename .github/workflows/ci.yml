@@ -14,13 +14,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
       - run: npm install
+      - run: npm run build:cli -w packages/ps
+      - run: npm run build -w packages/ps
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run build
       - run: npm test
 
-  dotnet:
+  native:
     strategy:
       fail-fast: false
       matrix:
@@ -31,25 +35,5 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - run: npm install
-      - run: dotnet publish packages/ps-dotnet -c Release -r ${{ matrix.rid }}
-
-  dotnet-nodeapi:
-    strategy:
-      fail-fast: false
-      matrix:
-        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - run: npm install
-      - run: dotnet publish packages/ps-dotnet-nodeapi -c Release -r ${{ matrix.rid }}
+      - run: node packages/ps/scripts/build-cli-all.js ${{ matrix.rid }}
+      - run: node packages/ps/scripts/build-nodeapi-all.js ${{ matrix.rid }}

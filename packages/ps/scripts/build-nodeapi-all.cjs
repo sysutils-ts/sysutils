@@ -1,7 +1,6 @@
 "use strict";
 
 const { spawnSync } = require("node:child_process");
-const fs = require("node:fs");
 const path = require("node:path");
 
 const RIDS = [
@@ -23,13 +22,13 @@ const RIDS = [
   },
 ];
 
-const projectDir = path.resolve(__dirname, "..");
+const projectFile = path.resolve(__dirname, "..", "native", "nodeapi", "SysUtils.Ps.NodeApi.csproj");
 
 function build(target) {
   console.log(`Building ${target.rid} ...`);
   const args = [
     "publish",
-    projectDir,
+    projectFile,
     "-c",
     "Release",
     "-r",
@@ -41,7 +40,7 @@ function build(target) {
     console.error(`dotnet publish failed for ${target.rid}`);
     return false;
   }
-  console.log(`  -> bin/${target.rid}/${target.bin}`);
+  console.log(`  -> bin/nodeapi/${target.rid}/${target.bin}`);
   return true;
 }
 

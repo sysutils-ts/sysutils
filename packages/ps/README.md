@@ -49,14 +49,16 @@ long-running tools, supervisors, or resource-constrained environments:
 ## Install
 
 ```bash
-npm install @sysutils/ps @sysutils/ps-dotnet
+npm install @sysutils/ps
 ```
 
-For the experimental in-process backend you also need
-`@sysutils/ps-dotnet-nodeapi` and `node-api-dotnet`:
+The package ships prebuilt native binaries for Windows, Linux, and macOS
+(`x64` and `arm64`).
+
+For the experimental in-process backend you also need `node-api-dotnet`:
 
 ```bash
-npm install @sysutils/ps-dotnet-nodeapi node-api-dotnet
+npm install node-api-dotnet
 ```
 
 > **Note:** `node-api-dotnet@0.9.21` has an open shutdown bug on Node.js
@@ -141,10 +143,10 @@ Windows (`pid`, `ppid`, `name`) plus optional extras where available.
 
 ## Backends
 
-| backend         | package                       | type                                         | default |
-| --------------- | ----------------------------- | -------------------------------------------- | ------- |
-| .NET CLI        | `@sysutils/ps-dotnet`         | Native AOT executable (spawn)                | yes     |
-| .NET in-process | `@sysutils/ps-dotnet-nodeapi` | Managed assembly loaded by `node-api-dotnet` | no      |
+| backend         | location in `@sysutils/ps` | type                                         | default |
+| --------------- | -------------------------- | -------------------------------------------- | ------- |
+| .NET CLI        | `bin/<platform>/<arch>/ps` | Native AOT executable (spawn)                | yes     |
+| .NET in-process | `bin/nodeapi/<rid>/`       | Managed assembly loaded by `node-api-dotnet` | no      |
 
 ### .NET CLI (default)
 
@@ -208,12 +210,23 @@ npm run test
 npm run lint
 ```
 
-The `@sysutils/ps` build is produced by `tsdown` and outputs `dist/index.mjs`
-and `dist/index.d.mts`.
+`npm run build` only bundles the TypeScript entrypoint. To also build the
+native CLI and in-process backends for the current platform, run:
+
+```bash
+npm run build:cli       # native AOT CLI binary
+npm run build:nodeapi   # node-api-dotnet assembly
+npm run build           # TypeScript bundle
+```
+
+To cross-compile all supported RIDs (requires .NET 8 SDK):
+
+```bash
+npm run build:all
+```
 
 ## See also
 
-- [`@sysutils/ps-dotnet`](../ps-dotnet) — standalone AOT CLI backend.
-- [`@sysutils/ps-dotnet-nodeapi`](../ps-dotnet-nodeapi) — in-process .NET
-  backend.
+- `native/cli/` — .NET AOT CLI backend source.
+- `native/nodeapi/` — in-process `node-api-dotnet` backend source.
 - [ADR 0002: In-process `node-api-dotnet` backend](../../docs/adr/0002-nodeapi-dotnet-for-supervisor.md).

@@ -13,19 +13,19 @@ const RIDS = [
   { rid: 'osx-arm64', platform: 'darwin', arch: 'arm64', bin: 'ps' },
 ];
 
-const projectDir = path.resolve(__dirname, '..');
-const publishBase = path.join(projectDir, 'bin');
+const projectRoot = path.resolve(__dirname, '..');
+const projectFile = path.join(projectRoot, 'native', 'cli', 'SysUtils.Ps.csproj');
+const publishBase = path.join(projectRoot, 'bin');
 
 function build(target) {
   console.log(`Building ${target.rid} ...`);
   const outDir = path.join(publishBase, 'publish', target.rid);
   const args = [
     'publish',
-    projectDir,
+    projectFile,
     '-c', 'Release',
     '-r', target.rid,
     '-o', outDir,
-    '-p:AssemblyName=ps',
     '--nologo',
   ];
   const r = spawnSync('dotnet', args, { stdio: 'inherit' });
@@ -33,13 +33,13 @@ function build(target) {
     console.error(`dotnet publish failed for ${target.rid}`);
     return false;
   }
-  const destDir = path.join(projectDir, 'bin', target.platform, target.arch);
+  const destDir = path.join(projectRoot, 'bin', target.platform, target.arch);
   fs.mkdirSync(destDir, { recursive: true });
   const src = path.join(outDir, target.bin);
   const dest = path.join(destDir, target.bin);
   fs.copyFileSync(src, dest);
   try { fs.chmodSync(dest, 0o755); } catch {}
-  console.log(`  -> ${path.relative(projectDir, dest)}`);
+  console.log(`  -> ${path.relative(projectRoot, dest)}`);
   return true;
 }
 

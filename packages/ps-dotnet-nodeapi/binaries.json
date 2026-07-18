@@ -1,8 +1,0 @@
-{
-  "win32-x64": "bin/win-x64/ps-nodeapi.dll",
-  "win32-arm64": "bin/win-arm64/ps-nodeapi.dll",
-  "linux-x64": "bin/linux-x64/ps-nodeapi.dll",
-  "linux-arm64": "bin/linux-arm64/ps-nodeapi.dll",
-  "darwin-x64": "bin/osx-x64/ps-nodeapi.dll",
-  "darwin-arm64": "bin/osx-arm64/ps-nodeapi.dll"
-}

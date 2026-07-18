@@ -20,24 +20,28 @@ shared C# file while removing spawn overhead.
 
 ## Decision
 
-Add a package `@sysutils/ps-dotnet-nodeapi` that builds a managed .NET assembly
-exposing `PsModule.ListProcesses(fields)` and load it with `node-api-dotnet`.
-`@sysutils/ps` will keep the `@sysutils/ps-dotnet` CLI as the default backend
-and use the in-process backend only when explicitly requested (`backend:
-"dotnet-nodeapi"`) until `node-api-dotnet` resolves its Node-API shutdown
-instability on Node.js >= 24.14.0.
+Add a `nodeapi` native backend under `packages/ps/native/nodeapi` that builds a
+managed .NET assembly exposing `PsModule.ListProcesses(fields)` and load it with
+`node-api-dotnet`. Both backends ship inside `@sysutils/ps`; the CLI binary is
+loaded from `bin/<platform>/<arch>/ps` and the nodeapi assembly from
+`bin/nodeapi/<rid>/ps-nodeapi.dll`. `@sysutils/ps` will keep the CLI backend as
+the default and use the in-process backend only when explicitly requested
+(`backend: "dotnet-nodeapi"`) until `node-api-dotnet` resolves its Node-API
+shutdown instability on Node.js >= 24.14.0.
 
 The assembly returns a JSON-lines string so the Node side can reuse the existing
 parser and `ProcessInfo` normalization.
 
-### Why a separate backend package
+### Native backend layout
 
-- The Node-API interop build uses `[JSExport]` attributes and a small module
-  wrapper (`PsModule.cs`) that would not fit cleanly in the CLI package.
-- The CLI backend is preserved for environments where `node-api-dotnet` or the
-  .NET runtime is unavailable.
-- Both packages share `packages/ps-dotnet/Program.cs`, so platform readers are
-  not duplicated.
+- Both backends live inside `@sysutils/ps` under `packages/ps/native/`:
+  `cli/` for the AOT CLI and `nodeapi/` for the in-process assembly.
+- They share `packages/ps/native/Program.cs`, so platform readers are not
+  duplicated.
+- `packages/ps/binaries.json` maps `process.platform-process.arch` to the
+  correct binary path for each backend.
+- The CLI backend is the default for environments where `node-api-dotnet` or
+  the .NET runtime is unavailable, or where the Node-API shutdown bug is hit.
 
 ### Data contract
 
@@ -77,10 +81,14 @@ fields are `null` when not available.
 - Target `net8.0`.
 - Reference `Microsoft.JavaScript.NodeApi` and
   `Microsoft.JavaScript.NodeApi.Generator`.
-- `dotnet publish -r <RID>` outputs `bin/<RID>/ps-nodeapi.dll` plus
+- `dotnet publish -r <RID>` in `packages/ps/native/nodeapi` outputs
+  `packages/ps/bin/nodeapi/<RID>/ps-nodeapi.dll` plus
   `Microsoft.JavaScript.NodeApi.dll`.
+- `dotnet publish -r <RID>` in `packages/ps/native/cli` outputs a
+  self-contained AOT single-file binary to
+  `packages/ps/bin/<platform>/<arch>/ps`.
 - The `node-api-dotnet` npm package is declared as an optional dependency of
-  `@sysutils/ps` and `@sysutils/ps-dotnet-nodeapi`.
+  `@sysutils/ps`.
 
 ## Consequences
 
@@ -104,11 +112,11 @@ fields are `null` when not available.
 
 Measured on a Surface Pro X (Windows 11 ARM64 + WSL2 Ubuntu ARM64):
 
-| Backend                                      | Mean `listProcesses()`                        | Output size               |
-| -------------------------------------------- | --------------------------------------------- | ------------------------- |
-| `@sysutils/ps-dotnet` CLI spawn + JSON parse | ~28 ms                                        | ~822 KB (win-arm64)       |
-| `node-api-dotnet` in-proc + JSON parse       | ~6 ms (Windows), ~0.8 ms (Linux)              | ~500 KB (assembly + deps) |
-| `ps-list`                                    | ~7.8 ms (Linux), unsupported on Windows ARM64 | n/a                       |
+| Backend                                          | Mean `listProcesses()`                        | Output size               |
+| ------------------------------------------------ | --------------------------------------------- | ------------------------- |
+| `@sysutils/ps` CLI spawn + JSON parse            | ~28 ms                                        | ~822 KB (win-arm64)       |
+| `@sysutils/ps` in-proc (`node-api-dotnet`)       | ~6 ms (Windows), ~0.8 ms (Linux)              | ~500 KB (assembly + deps) |
+| `ps-list`                                        | ~7.8 ms (Linux), unsupported on Windows ARM64 | n/a                       |
 
 The in-process backend is roughly **4–35× faster** than the CLI spawn path and
 `ps-list` on Linux, and it supports Windows ARM64 where `ps-list` does not.
@@ -128,5 +136,5 @@ The in-process backend is roughly **4–35× faster** than the CLI spawn path an
 ## Related
 
 - ADR 0001: Rust vs .NET for `@sysutils/ps` native backends
-- `@sysutils/ps-dotnet` process readers (`WindowsReader`, `LinuxReader`, `MacReader`)
+- `packages/ps/native/Program.cs` — process readers (`WindowsReader`, `LinuxReader`, `MacReader`)
 - https://www.npmjs.com/package/node-api-dotnet

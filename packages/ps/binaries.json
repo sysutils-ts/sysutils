@@ -1,0 +1,18 @@
+{
+  "dotnet": {
+    "win32-x64": "bin/win32/x64/ps.exe",
+    "win32-arm64": "bin/win32/arm64/ps.exe",
+    "linux-x64": "bin/linux/x64/ps",
+    "linux-arm64": "bin/linux/arm64/ps",
+    "darwin-x64": "bin/darwin/x64/ps",
+    "darwin-arm64": "bin/darwin/arm64/ps"
+  },
+  "dotnet-nodeapi": {
+    "win32-x64": "bin/nodeapi/win-x64/ps-nodeapi.dll",
+    "win32-arm64": "bin/nodeapi/win-arm64/ps-nodeapi.dll",
+    "linux-x64": "bin/nodeapi/linux-x64/ps-nodeapi.dll",
+    "linux-arm64": "bin/nodeapi/linux-arm64/ps-nodeapi.dll",
+    "darwin-x64": "bin/nodeapi/osx-x64/ps-nodeapi.dll",
+    "darwin-arm64": "bin/nodeapi/osx-arm64/ps-nodeapi.dll"
+  }
+}

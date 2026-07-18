@@ -13,13 +13,13 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <PublishDir>bin\$(RuntimeIdentifier)</PublishDir>
+    <PublishDir>..\..\bin\nodeapi\$(RuntimeIdentifier)</PublishDir>
     <PublishNodeModule>false</PublishNodeModule>
     <PackNpmPackage>false</PackNpmPackage>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\ps-dotnet\Program.cs" Link="Program.cs" />
+    <Compile Include="..\Program.cs" Link="Program.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -10,7 +10,7 @@ if (!rid) {
   process.exit(1);
 }
 
-const allScript = path.resolve(__dirname, 'build-all.js');
+const allScript = path.resolve(__dirname, 'build-cli-all.cjs');
 const result = spawnSync(process.execPath, [allScript, rid], {
   cwd: path.resolve(__dirname, '..'),
   stdio: 'inherit',

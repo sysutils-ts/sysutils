@@ -35,11 +35,6 @@ export interface PsOptions {
 
 type SupportedBackend = "dotnet" | "dotnet-nodeapi";
 
-const BACKEND_PACKAGES: Record<SupportedBackend, string> = {
-  dotnet: "@sysutils/ps-dotnet",
-  "dotnet-nodeapi": "@sysutils/ps-dotnet-nodeapi",
-};
-
 export interface ProcessStream extends ReadableStream {
   process: ChildProcess;
 }
@@ -50,16 +45,14 @@ function backendFromEnv(): SupportedBackend | undefined {
   return undefined;
 }
 
-function readBinariesMap(
-  packageName: string,
-): Record<string, string> | undefined {
+type BinariesMap = Record<SupportedBackend, Record<string, string>>;
+
+function readBinariesMap(): BinariesMap | undefined {
   try {
-    const entryUrl = new URL(import.meta.resolve(packageName));
-    const packageRoot = new URL(".", entryUrl);
-    const binariesUrl = new URL("./binaries.json", packageRoot);
+    const binariesUrl = new URL("../binaries.json", import.meta.url);
     return JSON.parse(
       readFileSync(fileURLToPath(binariesUrl), "utf8"),
-    ) as Record<string, string>;
+    ) as BinariesMap;
   } catch {
     return undefined;
   }
@@ -77,18 +70,18 @@ function nodeApiDotNetAvailable(): boolean {
 export function getBinaryPath(
   backend: SupportedBackend = "dotnet",
 ): string | undefined {
-  const packageName = BACKEND_PACKAGES[backend];
-  const binaries = readBinariesMap(packageName);
+  const binaries = readBinariesMap();
   if (!binaries) return undefined;
 
+  const backendBinaries = binaries[backend];
+  if (!backendBinaries) return undefined;
+
   const key = `${process.platform}-${process.arch}`;
-  const rel = binaries[key];
+  const rel = backendBinaries[key];
   if (!rel) return undefined;
 
   try {
-    const entryUrl = new URL(import.meta.resolve(packageName));
-    const packageRoot = new URL(".", entryUrl);
-    const binaryUrl = new URL(rel, packageRoot);
+    const binaryUrl = new URL(`../${rel}`, import.meta.url);
     const binaryPath = fileURLToPath(binaryUrl);
     if (!existsSync(binaryPath)) return undefined;
     if (backend === "dotnet-nodeapi" && !nodeApiDotNetAvailable())
@@ -107,7 +100,7 @@ function resolveBackend(options?: PsOptions): SupportedBackend {
     if (getBinaryPath(backend)) return backend;
   }
   throw new Error(
-    "No @sysutils/ps backend found. Install @sysutils/ps-dotnet or @sysutils/ps-dotnet-nodeapi and build the native binary.",
+    "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
   );
 }
 
@@ -129,7 +122,7 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
   const binaryPath = getBinaryPath(backend);
   if (!binaryPath) {
     throw new Error(
-      `Backend "${backend}" was selected but its native binary is missing. Run the build for ${BACKEND_PACKAGES[backend]}.`,
+      `Backend "${backend}" was selected but its native binary is missing. Run \`npm run build:${backend === "dotnet" ? "cli" : "nodeapi"}\` in @sysutils/ps.`,
     );
   }
 

@@ -9,29 +9,33 @@ JavaScript API.
 
 ## Packages
 
-| package                                                       | description                                                       |
-| ------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`@sysutils/ps`](./packages/ps)                               | Cross-platform process listing as a Node.js `Readable` stream.    |
-| [`@sysutils/ps-dotnet`](./packages/ps-dotnet)                 | Native .NET AOT CLI backend for `@sysutils/ps`.                   |
-| [`@sysutils/ps-dotnet-nodeapi`](./packages/ps-dotnet-nodeapi) | In-process .NET backend for `@sysutils/ps` via `node-api-dotnet`. |
+| package                 | description                                                    |
+| ----------------------- | -------------------------------------------------------------- |
+| [`@sysutils/ps`](./packages/ps) | Cross-platform process listing as a Node.js `Readable` stream. |
 
 ## Layout
 
 ```
 packages/
-  ps/                   # Node.js entrypoint (@sysutils/ps)
-  ps-dotnet/            # .NET AOT CLI binary package
-  ps-dotnet-nodeapi/    # .NET assembly loaded by node-api-dotnet
+  ps/                   # @sysutils/ps package
+    src/                # TypeScript entrypoint and tests
+    native/cli/         # .NET AOT CLI backend source
+    native/nodeapi/     # in-process .NET backend source via node-api-dotnet
+    native/tests/       # .NET unit tests
+    scripts/            # native build helpers
+    bin/                # published native binaries (ignored in git)
+    dist/               # TypeScript bundle (ignored in git)
+    binaries.json       # backend binary manifest
 .github/
   workflows/            # CI builds for native binaries
-.agents/               # Agent rules and skills
-docs/adr/              # Architecture decision records
+.agents/                # Agent rules and skills
+docs/adr/               # Architecture decision records
 ```
 
 ## Tooling
 
 - Node.js `>=24` with `npm` workspaces.
-- .NET 8 SDK (for `ps-dotnet` and `ps-dotnet-nodeapi`).
+- .NET 8 SDK (for building the `@sysutils/ps` native backends).
 
 ## Read-first
 
