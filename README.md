@@ -12,8 +12,8 @@ JavaScript API.
 | package | description |
 |---|---|
 | [`@sysutils/ps`](./packages/ps) | Cross-platform process listing as a Node.js `Readable` stream. |
-| `@sysutils/ps-rust` | Native Rust backend for `@sysutils/ps`. |
-| `@sysutils/ps-dotnet` | Native .NET backend for `@sysutils/ps`. |
+| [`@sysutils/ps-rust`](./packages/ps-rust) | Native Rust backend for `@sysutils/ps`. |
+| [`@sysutils/ps-dotnet`](./packages/ps-dotnet) | Native .NET backend for `@sysutils/ps`. |
 
 ## Layout
 

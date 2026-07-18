@@ -2,14 +2,20 @@
 
 Cross-platform process listing as a Node.js `Readable` stream.
 
+`@sysutils/ps` is a thin Node.js wrapper that spawns the fastest available
+native backend and streams parsed process objects.
+
 ## Install
 
 ```bash
 npm install @sysutils/ps
 ```
 
-`@sysutils/ps` has optional native dependencies. The package tries to use the
-fastest backend available for the current platform, falling back to the other.
+You also need at least one native backend installed and built:
+
+```bash
+npm install @sysutils/ps-rust   # or @sysutils/ps-dotnet
+```
 
 ## API
 
@@ -24,6 +30,9 @@ for await (const process of stream) {
 
 // Convenience collector (uses the stream under the hood).
 const all = await listProcesses();
+
+// Force a specific backend or limit fields.
+const dotnet = createProcessStream({ backend: "dotnet", fields: ["pid", "name"] });
 ```
 
 ### `createProcessStream(options?)`
@@ -31,8 +40,14 @@ const all = await listProcesses();
 Returns a `Readable` object-mode stream of `ProcessInfo`.
 
 - `options.backend?: "rust" | "dotnet" | "auto"` — force a native backend or
-  let the package choose.
+  let the package choose. Defaults to `auto` (or `process.env.SYSUTILS_PS_BACKEND`).
 - `options.fields?: string[]` — limit fields, when the backend supports it.
+
+The returned stream has a `process` property exposing the spawned `ChildProcess`.
+It also emits:
+
+- `stderr` — raw `stderr` chunks from the native backend.
+- `parseError` — when a line from the backend is not valid JSON.
 
 ### `listProcesses(options?)`
 
@@ -40,7 +55,8 @@ Returns a `Readable` object-mode stream of `ProcessInfo`.
 
 ### `getBinaryPath(backend?)`
 
-Resolves the native binary path for a backend.
+Resolves the absolute path to the native binary for a backend, or `undefined`
+if it is not built for the current platform.
 
 ## ProcessInfo
 
@@ -57,7 +73,7 @@ interface ProcessInfo {
 
 ## Backends
 
-| backend | package | status |
+| backend | package | language |
 |---|---|---|
-| Rust | `@sysutils/ps-rust` | planned |
-| .NET | `@sysutils/ps-dotnet` | planned |
+| Rust | `@sysutils/ps-rust` | Rust (`sysinfo`) |
+| .NET | `@sysutils/ps-dotnet` | C# (P/Invoke) |

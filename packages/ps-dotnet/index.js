@@ -1,18 +1,15 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+'use strict';
 
-const binaries = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "binaries.json"), "utf8"),
-);
+const path = require('node:path');
+const binaries = require('./binaries.json');
 
-export function getBinaryPath() {
+function getBinaryPath() {
   const key = `${process.platform}-${process.arch}`;
-  const entry = binaries[key];
-  if (!entry) {
-    throw new Error(`Unsupported platform: ${key}`);
+  const rel = binaries[key];
+  if (!rel) {
+    throw new Error(`No prebuilt binary for ${key}. Supported: ${Object.keys(binaries).join(', ')}`);
   }
-  return join(dirname(fileURLToPath(import.meta.url)), entry);
+  return path.resolve(__dirname, rel);
 }
 
-export default { getBinaryPath };
+module.exports = { getBinaryPath };

@@ -1,1 +1,1 @@
-export declare function getBinaryPath(): string;
+export function getBinaryPath(): string;
