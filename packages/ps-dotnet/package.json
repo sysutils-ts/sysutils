@@ -24,7 +24,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "build:all": "node scripts/build-all.js",
-    "test": "dotnet test"
+    "test": "dotnet test tests/SysUtils.Ps.Tests.csproj"
   },
   "license": "MIT"
 }
