@@ -35,5 +35,5 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - run: node packages/ps/scripts/build-cli-all.js ${{ matrix.rid }}
-      - run: node packages/ps/scripts/build-nodeapi-all.js ${{ matrix.rid }}
+      - run: node packages/ps/scripts/build-cli-all.cjs ${{ matrix.rid }}
+      - run: node packages/ps/scripts/build-nodeapi-all.cjs ${{ matrix.rid }}

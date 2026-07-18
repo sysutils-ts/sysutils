@@ -35,7 +35,7 @@ function build(target) {
     target.rid,
     "--nologo",
   ];
-  const r = spawnSync("dotnet", args, { stdio: "inherit" });
+  const r = spawnSync("dotnet", args, { stdio: "inherit" }); // NOSONAR: dotnet is the .NET SDK CLI resolved from PATH; args are generated internally
   if (r.status !== 0) {
     console.error(`dotnet publish failed for ${target.rid}`);
     return false;

@@ -195,6 +195,35 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
   return stream;
 }
 
+function parseNdjson(json: string): ProcessInfo[] {
+  return json
+    .split("\n")
+    .filter(Boolean)
+    .map((line) =>
+      normalizeProcessInfo(JSON.parse(line) as Record<string, unknown>),
+    );
+}
+
+function loadDotnetNodeapi(binaryPath: string): void {
+  if (cachedDotnetAddon) return;
+  const dotnet = require("node-api-dotnet/net8.0") as {
+    require: (path: string) => {
+      PsModule: { listProcesses: (fields: string) => string };
+    };
+  };
+  cachedDotnetAddon = dotnet.require(binaryPath);
+}
+
+function listWithDotnetNodeapi(
+  options: PsOptions | undefined,
+  binaryPath: string,
+): ProcessInfo[] {
+  loadDotnetNodeapi(binaryPath);
+  const fields = options?.fields?.join(",") ?? "";
+  const json = cachedDotnetAddon!.PsModule.listProcesses(fields);
+  return parseNdjson(json);
+}
+
 export async function listProcesses(
   options?: PsOptions,
 ): Promise<ProcessInfo[]> {
@@ -203,28 +232,15 @@ export async function listProcesses(
     const binaryPath = getBinaryPath("dotnet-nodeapi");
     if (binaryPath) {
       try {
-        if (!cachedDotnetAddon) {
-          const dotnet = require("node-api-dotnet/net8.0") as {
-            require: (path: string) => {
-              PsModule: { listProcesses: (fields: string) => string };
-            };
-          };
-          cachedDotnetAddon = dotnet.require(binaryPath);
-        }
-        const fields = options?.fields?.join(",") ?? "";
-        const json = cachedDotnetAddon.PsModule.listProcesses(fields);
-        return json
-          .split("\n")
-          .filter((line) => line)
-          .map((line) =>
-            normalizeProcessInfo(JSON.parse(line) as Record<string, unknown>),
-          );
+        return listWithDotnetNodeapi(options, binaryPath);
       } catch (err) {
         if (options?.backend === "dotnet-nodeapi") throw err;
         // node-api-dotnet may be installed without the .NET runtime; fall back to the CLI.
       }
     }
-    if (getBinaryPath("dotnet")) return listProcesses({ ...options, backend: "dotnet" });
+    if (getBinaryPath("dotnet")) {
+      return listProcesses({ ...options, backend: "dotnet" });
+    }
     throw new Error(
       "The dotnet-nodeapi backend failed to load and no dotnet CLI binary is available.",
     );
