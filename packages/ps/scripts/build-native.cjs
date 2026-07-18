@@ -1,26 +1,14 @@
 #!/usr/bin/env node
 'use strict';
 
-const { buildTargets } = require('./build-native-all.cjs');
+const { RIDS, buildTargets } = require('./build-native-all.cjs');
 
 const ALLOWED_KINDS = new Set(['cli', 'nodeapi']);
-const ALLOWED_RIDS = new Set([
-  'win-x64',
-  'win-arm64',
-  'linux-x64',
-  'linux-arm64',
-  'osx-x64',
-  'osx-arm64',
-]);
+const ALLOWED_RIDS = new Set(RIDS.map((t) => t.rid));
 
 function getRid(platform, arch) {
-  const archMap = { x64: 'x64', arm64: 'arm64' };
-  const a = archMap[arch];
-  if (!a) return undefined;
-  if (platform === 'win32') return `win-${a}`;
-  if (platform === 'linux') return `linux-${a}`;
-  if (platform === 'darwin') return `osx-${a}`;
-  return undefined;
+  const match = RIDS.find((t) => t.platform === platform && t.arch === arch);
+  return match?.rid;
 }
 
 function build(kind) {

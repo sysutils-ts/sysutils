@@ -23,7 +23,8 @@
   "tsdown": {
     "entry": [
       "src/index.ts",
-      "src/index.test.ts"
+      "src/index.test.ts",
+      "src/nodeapi.test.ts"
     ],
     "dts": true,
     "sourcemap": true

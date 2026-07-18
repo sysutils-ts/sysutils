@@ -3,16 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { publishProject, runBuilds } = require('./build-native-all-base.cjs');
-
-const RIDS = [
-  { rid: 'win-x64', platform: 'win32', arch: 'x64' },
-  { rid: 'win-arm64', platform: 'win32', arch: 'arm64' },
-  { rid: 'linux-x64', platform: 'linux', arch: 'x64' },
-  { rid: 'linux-arm64', platform: 'linux', arch: 'arm64' },
-  { rid: 'osx-x64', platform: 'darwin', arch: 'x64' },
-  { rid: 'osx-arm64', platform: 'darwin', arch: 'arm64' },
-];
+const { RIDS, publishProject, runBuilds } = require('./build-native-all-base.cjs');
 
 const projectRoot = path.resolve(__dirname, '..');
 

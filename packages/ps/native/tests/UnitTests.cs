@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using Xunit;
 
@@ -125,9 +126,8 @@ public class PsModuleTests
         foreach (var line in lines)
         {
             using var doc = JsonDocument.Parse(line);
-            Assert.True(doc.RootElement.TryGetProperty("pid", out _));
-            Assert.True(doc.RootElement.TryGetProperty("name", out _));
-            Assert.False(doc.RootElement.TryGetProperty("ppid", out _));
+            var properties = doc.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet();
+            Assert.Equal(new[] { "pid", "name" }.ToHashSet(), properties);
         }
     }
 }
