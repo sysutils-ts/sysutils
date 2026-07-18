@@ -1,0 +1,28 @@
+{
+  "name": "@sysutils/ps",
+  "version": "0.0.0",
+  "description": "Cross-platform process listing as a Node.js Readable stream.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/**/*.test.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "optionalDependencies": {
+    "@sysutils/ps-rust": "^0.0.0",
+    "@sysutils/ps-dotnet": "^0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

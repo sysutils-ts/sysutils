@@ -1,0 +1,28 @@
+{
+  "name": "@sysutils/monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cross-platform, stream-first system utilities for Node.js.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w packages/ps",
+    "test": "npm run test -w packages/ps",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "changeset": "changeset"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.7.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.5.0"
+  }
+}

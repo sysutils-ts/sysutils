@@ -1,0 +1,44 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+*.tsbuildinfo
+
+# Build outputs
+dist/
+build/
+out/
+coverage/
+*.log
+
+# Native binaries
+target/
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.sln.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sw?
+
+# Temporary evidence or debug artifacts
+.evidence/
