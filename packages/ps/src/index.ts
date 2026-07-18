@@ -253,7 +253,13 @@ export async function listProcesses(
         "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
       );
     }
-    return listWithDotnetNodeapi(options, binaryPath);
+    try {
+      return listWithDotnetNodeapi(options, binaryPath);
+    } catch (err) {
+      if (requested === "dotnet-nodeapi") throw err;
+      // Auto-selection: nodeapi failed, fall back to the dotnet CLI.
+      return listProcesses({ ...options, backend: "dotnet" });
+    }
   }
 
   const result: ProcessInfo[] = [];
