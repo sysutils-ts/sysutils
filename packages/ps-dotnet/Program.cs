@@ -65,7 +65,7 @@ internal readonly struct Options
     }
 }
 
-#if !TEST
+#if !TEST && !NODEAPI
 public static class Program
 {
     public static int Main(string[] args)

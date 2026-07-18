@@ -19,7 +19,8 @@
   },
   "optionalDependencies": {
     "@sysutils/ps-rust": "^0.1.0",
-    "@sysutils/ps-dotnet": "^0.1.0"
+    "@sysutils/ps-dotnet": "^0.1.0",
+    "@sysutils/ps-dotnet-nodeapi": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

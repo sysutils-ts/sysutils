@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess, type ChildProcessByStdio } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+import { createRequire } from "node:module";
 import { Readable } from "node:stream";
 import type { Readable as ReadableStream } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -16,15 +17,16 @@ export interface ProcessInfo {
 }
 
 export interface PsOptions {
-  backend?: "rust" | "dotnet" | "auto";
+  backend?: "rust" | "dotnet" | "dotnet-nodeapi" | "auto";
   fields?: string[];
 }
 
-type SupportedBackend = "rust" | "dotnet";
+type SupportedBackend = "rust" | "dotnet" | "dotnet-nodeapi";
 
 const BACKEND_PACKAGES: Record<SupportedBackend, string> = {
   rust: "@sysutils/ps-rust",
   dotnet: "@sysutils/ps-dotnet",
+  "dotnet-nodeapi": "@sysutils/ps-dotnet-nodeapi",
 };
 
 export interface ProcessStream extends ReadableStream {
@@ -33,7 +35,7 @@ export interface ProcessStream extends ReadableStream {
 
 function backendFromEnv(): SupportedBackend | undefined {
   const env = process.env.SYSUTILS_PS_BACKEND;
-  if (env === "rust" || env === "dotnet") return env;
+  if (env === "rust" || env === "dotnet" || env === "dotnet-nodeapi") return env;
   return undefined;
 }
 
@@ -77,19 +79,26 @@ export function getBinaryPath(
 function resolveBackend(options?: PsOptions): SupportedBackend {
   const requested = options?.backend ?? backendFromEnv() ?? "auto";
   if (requested !== "auto") return requested;
-  // .NET AOT is fastest on Linux, Rust is fastest on Windows/macOS.
+  // In-process .NET Node-API is fastest when available.
   const order: SupportedBackend[] =
-    process.platform === "linux" ? ["dotnet", "rust"] : ["rust", "dotnet"];
+    process.platform === "linux"
+      ? ["dotnet-nodeapi", "dotnet", "rust"]
+      : ["dotnet-nodeapi", "rust", "dotnet"];
   for (const backend of order) {
     if (getBinaryPath(backend)) return backend;
   }
   throw new Error(
-    "No @sysutils/ps backend found. Install @sysutils/ps-rust or @sysutils/ps-dotnet and build the native binary.",
+    "No @sysutils/ps backend found. Install @sysutils/ps-rust, @sysutils/ps-dotnet, or @sysutils/ps-dotnet-nodeapi and build the native binary.",
   );
 }
 
 export function createProcessStream(options?: PsOptions): ProcessStream {
   const backend = resolveBackend(options);
+  if (backend === "dotnet-nodeapi") {
+    throw new Error(
+      'The "dotnet-nodeapi" backend does not support streaming. Use listProcesses() instead.',
+    );
+  }
   const binaryPath = getBinaryPath(backend);
   if (!binaryPath) {
     throw new Error(
@@ -157,6 +166,26 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
 export async function listProcesses(
   options?: PsOptions,
 ): Promise<ProcessInfo[]> {
+  const backend = resolveBackend(options);
+  if (backend === "dotnet-nodeapi") {
+    const binaryPath = getBinaryPath("dotnet-nodeapi");
+    if (!binaryPath) {
+      throw new Error(
+        'Backend "dotnet-nodeapi" was selected but its native binary is missing. Run the build for @sysutils/ps-dotnet-nodeapi.',
+      );
+    }
+    const require = createRequire(import.meta.url);
+    const addon = require(binaryPath) as {
+      PsModule: { listProcesses: (fields: string) => string };
+    };
+    const fields = options?.fields?.join(",") ?? "";
+    const json = addon.PsModule.listProcesses(fields);
+    return json
+      .split("\n")
+      .filter((line) => line)
+      .map((line) => JSON.parse(line) as ProcessInfo);
+  }
+
   const result: ProcessInfo[] = [];
   for await (const proc of createProcessStream(options)) {
     result.push(proc);

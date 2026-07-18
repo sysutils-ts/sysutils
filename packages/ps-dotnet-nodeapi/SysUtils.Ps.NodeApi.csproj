@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SysUtils.Ps</RootNamespace>
+    <AssemblyName>ps-nodeapi</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <DefineConstants>$(DefineConstants);NODEAPI</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PublishAot Condition="'$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' == '$(NETCoreSdkRuntimeIdentifier)'">true</PublishAot>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <PublishNodeModule>true</PublishNodeModule>
+    <PublishMultiPlatformNodeModule>true</PublishMultiPlatformNodeModule>
+    <PublishDir>bin</PublishDir>
+    <IlcDisableReflection>true</IlcDisableReflection>
+    <IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
+    <StackTraceSupport>false</StackTraceSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\ps-dotnet\Program.cs" Link="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.JavaScript.NodeApi" Version="0.9.21" />
+    <PackageReference Include="Microsoft.JavaScript.NodeApi.Generator" Version="0.9.21" />
+  </ItemGroup>
+
+</Project>
