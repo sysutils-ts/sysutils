@@ -187,31 +187,40 @@ internal static class MacProcReader
 
     public static IEnumerable<ProcessRecord> Read()
     {
-        const int bufferSize = 4096;
-        var buf = Marshal.AllocHGlobal(bufferSize);
+        var results = new List<ProcessRecord>();
+        var seenPids = new HashSet<int>();
+
+        const int INITIAL_BUFFER_SIZE = 4096;
+        const int MAX_BUFFER_SIZE = 8 * 1024 * 1024;
+        var bufSize = INITIAL_BUFFER_SIZE;
+        IntPtr buf = Marshal.AllocHGlobal(bufSize);
         try
         {
             int bytesUsed;
-            int offset = 0;
-            int total = 0;
-            var results = new List<ProcessRecord>();
-
-            // Pass 1: count
-            proc_listpids(1, 0, buf, bufferSize);
-            // Iterate in a loop in case more
             var pids = new List<int>();
             while (true)
             {
-                bytesUsed = proc_listpids(1, 0, buf, bufferSize);
+                bytesUsed = proc_listpids(1, 0, buf, bufSize);
                 if (bytesUsed <= 0) break;
-                total = bytesUsed;
-                for (offset = 0; offset + 4 <= total; offset += 4)
+
+                if (bytesUsed == bufSize)
+                {
+                    var newSize = Math.Min(bufSize * 2, MAX_BUFFER_SIZE);
+                    if (newSize == bufSize) break;
+                    Marshal.FreeHGlobal(buf);
+                    buf = Marshal.AllocHGlobal(newSize);
+                    bufSize = newSize;
+                    continue;
+                }
+
+                var total = bytesUsed;
+                for (var offset = 0; offset + 4 <= total; offset += 4)
                 {
                     var pid = Marshal.ReadInt32(buf, offset);
                     if (pid <= 0) break;
-                    if (!pids.Contains(pid)) pids.Add(pid);
+                    if (seenPids.Add(pid)) pids.Add(pid);
                 }
-                if (total < bufferSize) break;
+                break;
             }
 
             var bsdBuf = Marshal.AllocHGlobal(PROC_PIDT_SHORTBSDINFO_SIZE);

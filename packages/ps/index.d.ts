@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import type { ChildProcess } from 'node:child_process';
 
 export interface ProcessInfo {
   pid: number;
@@ -15,6 +16,13 @@ export interface CreateProcessStreamOptions {
   fields?: string[];
 }
 
+export interface ProcessStream extends Readable {
+  process: ChildProcess;
+  on(event: 'stderr', listener: (chunk: Buffer | string) => void): this;
+  on(event: 'parseError', listener: (err: Error) => void): this;
+  on(event: 'line', listener: (obj: ProcessInfo) => void): this;
+}
+
 export function createProcessStream(
   options?: CreateProcessStreamOptions,
-): Readable & { process: import('node:child_process').ChildProcess };
+): ProcessStream;

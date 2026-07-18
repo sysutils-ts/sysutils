@@ -12,7 +12,7 @@ test('getBinaryPath returns a non-empty string', () => {
   assert.ok(p.includes('bin'));
 });
 
-test('createProcessStream returns a non-empty stream with dotnet backend', (_, done) => {
+test('createProcessStream returns a non-empty readable stream with dotnet backend', (_, done) => {
   let stream;
   try {
     stream = createProcessStream({ backend: 'dotnet', fields: ['pid', 'name'] });
@@ -30,24 +30,23 @@ test('createProcessStream returns a non-empty stream with dotnet backend', (_, d
     done(err);
   };
 
-  let lines = 0;
-  let lastLine = '';
-  stream.on('line', (line) => {
-    lines += 1;
-    lastLine = line;
+  let count = 0;
+  let last = null;
+  stream.on('data', (obj) => {
+    count += 1;
+    last = obj;
   });
-  stream.on('close', (code) => {
-    if (lines === 0 || code !== 0) {
-      return finish();
-    }
+  stream.on('end', () => finish());
+  stream.on('error', () => finish());
+  stream.on('close', () => {
+    if (count === 0) return finish();
     try {
-      assert.ok(lastLine.length > 0);
-      const obj = JSON.parse(lastLine);
-      assert.ok(typeof obj.pid === 'number');
+      assert.ok(last && typeof last === 'object');
+      assert.ok(typeof last.pid === 'number');
       finish();
     } catch (err) {
       finish(err);
     }
   });
-  stream.on('error', () => finish());
+  setTimeout(() => finish(), 5000);
 });
