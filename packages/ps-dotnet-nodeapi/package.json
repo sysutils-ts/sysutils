@@ -30,7 +30,7 @@
     "build:all": "node scripts/build-all.js"
   },
   "optionalDependencies": {
-    "node-api-dotnet": "^0.9.21"
+    "node-api-dotnet": "0.9.21"
   },
   "license": "MIT"
 }
