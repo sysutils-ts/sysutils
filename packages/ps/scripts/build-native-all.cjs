@@ -82,4 +82,8 @@ function main() {
   process.exit(ok ? 0 : 1);
 }
 
-main();
+module.exports = { buildTargets, RIDS };
+
+if (require.main === module) {
+  main();
+}

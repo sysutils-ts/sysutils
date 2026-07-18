@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-const { spawnSync } = require('node:child_process');
-const path = require('node:path');
+const { buildTargets } = require('./build-native-all.cjs');
 
 const ALLOWED_KINDS = new Set(['cli', 'nodeapi']);
 const ALLOWED_RIDS = new Set([
@@ -34,16 +33,7 @@ function build(kind) {
     console.error(`Unsupported platform: ${process.platform}-${process.arch}`);
     process.exit(1);
   }
-  const allScript = path.resolve(__dirname, 'build-native-all.cjs');
-  const result = spawnSync(process.execPath, [allScript, kind, rid], {
-    cwd: path.resolve(__dirname, '..'),
-    stdio: 'inherit',
-  });
-  if (result.error) {
-    console.error(`Failed to start build script: ${result.error.message}`);
-    process.exit(1);
-  }
-  process.exit(result.status ?? 1);
+  process.exit(buildTargets(kind, [rid]) ? 0 : 1);
 }
 
 module.exports = { build };
