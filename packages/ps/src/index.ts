@@ -256,8 +256,8 @@ export async function listProcesses(
     try {
       return listWithDotnetNodeapi(options, binaryPath);
     } catch (err) {
-      if (requested === "dotnet-nodeapi") throw err;
-      // Auto-selection: nodeapi failed, fall back to the dotnet CLI.
+      if (options?.backend === "dotnet-nodeapi") throw err;
+      // Auto/env selection: nodeapi failed, fall back to the dotnet CLI.
       return listProcesses({ ...options, backend: "dotnet" });
     }
   }
