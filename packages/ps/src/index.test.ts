@@ -54,23 +54,4 @@ test("createProcessStream throws for an unknown backend", () => {
   );
 });
 
-test("listProcesses works with dotnet-nodeapi when the assembly is available", async (t) => {
-  // node-api-dotnet 0.9.21 has an open shutdown bug on Node >= 24.14.0 that can
-  // crash or hang the process on exit. Run this test only when explicitly opted in.
-  if (process.env.SYSUTILS_PS_TEST_NODEAPI !== "1") {
-    t.skip("SYSUTILS_PS_TEST_NODEAPI is not set");
-    return;
-  }
-  if (!getBinaryPath("dotnet-nodeapi")) {
-    t.skip("dotnet-nodeapi assembly not built");
-    return;
-  }
-  const procs = await listProcesses({
-    backend: "dotnet-nodeapi",
-    fields: ["pid", "name"],
-  });
-  assert.ok(procs.length > 0);
-  assert.ok(
-    procs.every((p) => typeof p.pid === "number" && typeof p.name === "string"),
-  );
-});
+

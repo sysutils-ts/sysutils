@@ -23,7 +23,8 @@
   "tsdown": {
     "entry": [
       "src/index.ts",
-      "src/index.test.ts"
+      "src/index.test.ts",
+      "src/nodeapi.test.ts"
     ],
     "dts": true,
     "sourcemap": true
@@ -34,7 +35,7 @@
     "build:cli": "node scripts/build-cli.cjs",
     "build:nodeapi": "node scripts/build-nodeapi.cjs",
     "build:all": "node scripts/build-cli-all.cjs && node scripts/build-nodeapi-all.cjs && tsdown",
-    "test": "node --test dist/index.test.mjs",
+    "test": "node --test dist/index.test.mjs dist/nodeapi.test.mjs",
     "test:dotnet": "dotnet test native/tests/SysUtils.Ps.Tests.csproj",
     "typecheck": "tsc --noEmit"
   },
