@@ -7,8 +7,7 @@ const ALLOWED_KINDS = new Set(['cli', 'nodeapi']);
 const ALLOWED_RIDS = new Set(RIDS.map((t) => t.rid));
 
 function getRid(platform, arch) {
-  const match = RIDS.find((t) => t.platform === platform && t.arch === arch);
-  return match?.rid;
+  return RIDS.find((t) => t.platform === platform && t.arch === arch)?.rid;
 }
 
 function build(kind) {
