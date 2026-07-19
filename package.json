@@ -16,15 +16,27 @@
     "lint": "eslint . --no-error-on-unmatched-pattern",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "release": "semantic-release"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/git": "10.0.1",
+    "@semantic-release/github": "12.0.9",
+    "@semantic-release/npm": "13.1.5",
+    "@semantic-release/release-notes-generator": "14.1.1",
     "@types/node": "^22.0.0",
     "eslint": "^9.7.0",
     "jiti": "2.7.0",
     "prettier": "^3.0.0",
+    "semantic-release": "24.2.9",
     "typescript": "^5.5.0",
     "typescript-eslint": "8.63.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ThePlenkov/sysutils.git"
   }
 }
