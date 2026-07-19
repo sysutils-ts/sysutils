@@ -91,7 +91,11 @@ function getArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);
   if (idx < 0) return undefined;
   const next = process.argv[idx + 1];
-  if (idx + 1 >= process.argv.length || KNOWN_FLAGS.has(next)) {
+  if (
+    idx + 1 >= process.argv.length ||
+    KNOWN_FLAGS.has(next) ||
+    next.startsWith("-")
+  ) {
     console.error(`Missing value for ${name}.`);
     process.exit(1);
   }

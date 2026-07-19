@@ -28,8 +28,35 @@ test("benchmark CLI rejects --warmup -1", () => {
   const result = run(["--warmup", "-1"]);
   assert.notStrictEqual(result.status, 0, "expected non-zero exit code");
   assert.ok(
-    result.stderr.includes("must be an integer"),
-    `stderr should reject negative integer: ${result.stderr}`,
+    result.stderr.includes("Missing value for --warmup"),
+    `stderr should reject dash-prefixed value: ${result.stderr}`,
+  );
+});
+
+test("benchmark CLI rejects oversized --runs", () => {
+  const result = run(["--runs", "100001"]);
+  assert.notStrictEqual(result.status, 0, "expected non-zero exit code");
+  assert.ok(
+    result.stderr.includes("safe integer"),
+    `stderr should reject oversized count: ${result.stderr}`,
+  );
+});
+
+test("benchmark CLI rejects unsafe-integer --warmup", () => {
+  const result = run(["--warmup", String(Number.MAX_SAFE_INTEGER + 1)]);
+  assert.notStrictEqual(result.status, 0, "expected non-zero exit code");
+  assert.ok(
+    result.stderr.includes("safe integer"),
+    `stderr should reject unsafe integer: ${result.stderr}`,
+  );
+});
+
+test("benchmark CLI rejects --summary followed by a flag", () => {
+  const result = run(["--summary", "--compare"]);
+  assert.notStrictEqual(result.status, 0, "expected non-zero exit code");
+  assert.ok(
+    result.stderr.includes("Missing value for --summary"),
+    `stderr should reject flag used as value: ${result.stderr}`,
   );
 });
 
