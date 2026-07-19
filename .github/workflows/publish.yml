@@ -86,6 +86,9 @@ jobs:
           path: packages/ps/bin
           merge-multiple: true
 
+      - name: Restore executable permissions on Unix binaries
+        run: chmod -R +x packages/ps/bin/linux/*/ps packages/ps/bin/darwin/*/ps
+
       - name: Build TypeScript bundle
         run: npm run build -w packages/ps
 
@@ -94,6 +97,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Install ps-list for benchmark comparison tests
+        run: npm install ps-list@9.0.0 --no-save -w packages/ps
 
       - name: Test
         env:
