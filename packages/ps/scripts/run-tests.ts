@@ -11,7 +11,7 @@ if (!fs.existsSync(distDir)) {
 }
 const files: string[] = fs
   .readdirSync(distDir)
-  .filter((name) => name.endsWith(".test.mjs"))
+  .filter((name) => name.endsWith(".test.mjs") || name.endsWith(".test.js"))
   .map((name) => path.join(distDir, name));
 
 if (files.length === 0) {
