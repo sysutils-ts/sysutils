@@ -65,6 +65,15 @@ Before making changes, read in this order:
 1. Use `changeset` to describe the change.
 2. CI publishes per-arch npm tarballs.
 3. The root `package.json` is private and is not published.
+4. The first publish of each `@sysutils/ps-<platform>-<arch>` package cannot use
+   npm OIDC trusted publishing because the package does not yet exist in the
+   registry. Bootstrap options:
+   - Create a granular npm access token with **bypass 2FA** enabled, scoped to
+     the `@sysutils` scope, and set it as the `NPM_TOKEN` GitHub Actions secret.
+     The `publish.yml` token-fallback path will use it to create the packages.
+   - Or manually publish the first version of each platform package (with OTP),
+     configure a trusted publisher for each on npmjs.com, and remove `NPM_TOKEN`
+     so subsequent releases use OIDC.
 
 ## 5. Agent-specific rules
 
