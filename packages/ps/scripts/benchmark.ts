@@ -118,7 +118,7 @@ function stats(times: number[]): Stats {
     n: sorted.length,
     mean: sum / sorted.length,
     min: sorted[0],
-    max: sorted[sorted.length - 1],
+    max: sorted.at(-1)!,
     p50: percentile(sorted, 50),
     p95: percentile(sorted, 95),
     p99: percentile(sorted, 99),
@@ -468,7 +468,9 @@ function truncate(s: string, max: number): string {
   return `${s.slice(0, max)}…`;
 }
 
-main().catch((err) => {
+try {
+  await main();
+} catch (err) {
   console.error(err);
   process.exit(1);
-});
+}

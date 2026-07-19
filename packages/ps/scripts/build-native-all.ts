@@ -36,8 +36,8 @@ const CONFIGS: Record<AllowedKind, Config> = {
       const dest = path.join(destDir, target.bin!);
       fs.copyFileSync(src, dest);
       try {
-        fs.chmodSync(dest, 0o755);
-      } catch {} // NOSONAR: native binary must be executable
+        fs.chmodSync(dest, 0o750);
+      } catch {}
       console.log(`  -> ${path.relative(projectRoot, dest)}`);
     },
   },

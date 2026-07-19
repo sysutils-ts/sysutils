@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { buildTargets, RIDS, type Target } from "./build-native-all.ts";
+import { buildTargets, RIDS } from "./build-native-all.ts";
 
 type AllowedKind = "cli" | "nodeapi";
 
