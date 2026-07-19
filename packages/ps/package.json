@@ -20,6 +20,19 @@
     "bin/darwin/*/ps",
     "bin/nodeapi/**/*"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ThePlenkov/sysutils.git",
+    "directory": "packages/ps"
+  },
+  "bugs": {
+    "url": "https://github.com/ThePlenkov/sysutils/issues"
+  },
+  "homepage": "https://github.com/ThePlenkov/sysutils/tree/main/packages/ps#readme",
   "tsdown": {
     "entry": [
       "src/index.ts",
