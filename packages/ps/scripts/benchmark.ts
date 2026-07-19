@@ -50,6 +50,17 @@ if (!fs.existsSync(distIndex)) {
   process.exit(1);
 }
 
+const MAX_BENCHMARK_ITERATIONS = 100_000;
+
+const KNOWN_FLAGS = new Set([
+  "--runs",
+  "--warmup",
+  "--fields",
+  "--summary",
+  "--svg",
+  "--compare",
+]);
+
 const runsArg = parseInteger(
   getArg("--runs") ?? process.env.SYSUTILS_PS_BENCHMARK_RUNS,
   50,
@@ -78,9 +89,13 @@ const compare =
 
 function getArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);
-  return idx >= 0 && idx + 1 < process.argv.length
-    ? process.argv[idx + 1]
-    : undefined;
+  if (idx < 0) return undefined;
+  const next = process.argv[idx + 1];
+  if (idx + 1 >= process.argv.length || KNOWN_FLAGS.has(next)) {
+    console.error(`Missing value for ${name}.`);
+    process.exit(1);
+  }
+  return next;
 }
 
 function hasArg(name: string): boolean {
@@ -124,9 +139,9 @@ function parseInteger(
     process.exit(1);
   }
   const n = Number(str);
-  if (!Number.isFinite(n)) {
+  if (!Number.isSafeInteger(n) || n > MAX_BENCHMARK_ITERATIONS) {
     console.error(
-      `Invalid ${name} value: number is too large (got "${str}").`,
+      `Invalid ${name} value: must be a safe integer not exceeding ${MAX_BENCHMARK_ITERATIONS} (got "${str}").`,
     );
     process.exit(1);
   }
@@ -140,10 +155,15 @@ function parseInteger(
 }
 
 function parseFields(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const rawItems = raw.split(",");
+  const fields = rawItems.map((s) => s.trim()).filter(Boolean);
+  if (fields.length !== rawItems.length) {
+    console.error(
+      `Invalid --fields: all entries must be non-empty (got "${raw}").`,
+    );
+    process.exit(1);
+  }
+  return fields;
 }
 
 function percentile(sorted: number[], p: number): number {
@@ -338,10 +358,6 @@ async function main(): Promise<void> {
   const ps = (await import(pathToFileURL(distIndex).href)) as PsModule;
   const { listProcesses, getBinaryPath } = ps;
   const fields = parseFields(fieldsArg);
-  if (fields.length === 0) {
-    console.error("Invalid --fields: at least one field is required.");
-    process.exit(1);
-  }
   const backends = await resolveAllBackends(listProcesses, getBinaryPath, fields);
 
   if (backends.length === 0) {

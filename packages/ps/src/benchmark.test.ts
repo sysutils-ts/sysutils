@@ -46,8 +46,17 @@ test("benchmark CLI rejects empty --fields", () => {
   const result = run(["--fields", ",,,"]);
   assert.notStrictEqual(result.status, 0, "expected non-zero exit code");
   assert.ok(
-    result.stderr.includes("at least one field"),
-    `stderr should mention field requirement: ${result.stderr}`,
+    result.stderr.includes("all entries must be non-empty"),
+    `stderr should reject empty field entries: ${result.stderr}`,
+  );
+});
+
+test("benchmark CLI rejects a valueless --svg flag", () => {
+  const result = run(["--runs", "1", "--warmup", "0", "--svg"]);
+  assert.notStrictEqual(result.status, 0, "expected non-zero exit code");
+  assert.ok(
+    result.stderr.includes("Missing value for --svg"),
+    `stderr should reject valueless flag: ${result.stderr}`,
   );
 });
 
@@ -94,7 +103,7 @@ test(
 
 test(
   "benchmark CLI includes a ps-list result when --compare is requested",
-  { skip: !getBinaryPath("dotnet") },
+  { skip: !getBinaryPath("dotnet") && !getBinaryPath("dotnet-nodeapi") },
   () => {
     const result = run(["--runs", "1", "--warmup", "0", "--compare"]);
     assert.strictEqual(result.status, 0, `expected success: ${result.stderr}`);
