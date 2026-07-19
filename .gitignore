@@ -15,6 +15,7 @@ build/
 out/
 coverage/
 *.log
+packages/*/dist-platforms/
 
 # Native binaries
 target/
