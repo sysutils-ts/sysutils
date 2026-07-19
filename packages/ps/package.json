@@ -24,7 +24,8 @@
     "entry": [
       "src/index.ts",
       "src/index.test.ts",
-      "src/nodeapi.test.ts"
+      "src/nodeapi.test.ts",
+      "src/benchmark.test.ts"
     ],
     "dts": true,
     "sourcemap": true
