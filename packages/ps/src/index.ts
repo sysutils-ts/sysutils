@@ -6,6 +6,7 @@ import {
 import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { createRequire } from "node:module";
+import path from "node:path";
 import { Readable } from "node:stream";
 import type { Readable as ReadableStream } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -68,17 +69,40 @@ function nodeApiDotNetAvailable(): boolean {
   }
 }
 
-export function getBinaryPath(
-  backend: SupportedBackend = "dotnet",
-): string | undefined {
-  // Test seam: allow tests to point nodeapi at a temporary copy so they can
-  // simulate missing/corrupt assemblies without mutating the real build artifact.
-  if (backend === "dotnet-nodeapi" && process.env.SYSUTILS_PS_TEST_NODEAPI_PATH) {
-    const override = process.env.SYSUTILS_PS_TEST_NODEAPI_PATH;
-    if (existsSync(override) && nodeApiDotNetAvailable()) return override;
+function platformPackageName(): string | undefined {
+  const { platform, arch } = process;
+  if (
+    (platform !== "win32" && platform !== "darwin" && platform !== "linux") ||
+    (arch !== "x64" && arch !== "arm64")
+  ) {
     return undefined;
   }
+  return `@sysutils/ps-${platform}-${arch}`;
+}
 
+function cliFileName(): string {
+  return process.platform === "win32" ? "ps.exe" : "ps";
+}
+
+function nodeapiFileName(): string {
+  return "bin/nodeapi/ps-nodeapi.dll";
+}
+
+function resolveOptionalDepFile(rel: string): string | undefined {
+  const pkgName = platformPackageName();
+  if (!pkgName) return undefined;
+  try {
+    const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+    const pkgRoot = path.dirname(pkgJsonPath);
+    const candidate = path.join(pkgRoot, rel);
+    if (existsSync(candidate)) return candidate;
+  } catch {
+    // optional dependency not installed for this platform
+  }
+  return undefined;
+}
+
+function resolveLocalBinary(backend: SupportedBackend): string | undefined {
   const binaries = readBinariesMap();
   if (!binaries) return undefined;
 
@@ -93,12 +117,33 @@ export function getBinaryPath(
     const binaryUrl = new URL(`../${rel}`, import.meta.url);
     const binaryPath = fileURLToPath(binaryUrl);
     if (!existsSync(binaryPath)) return undefined;
-    if (backend === "dotnet-nodeapi" && !nodeApiDotNetAvailable())
-      return undefined;
     return binaryPath;
   } catch {
     return undefined;
   }
+}
+
+export function getBinaryPath(
+  backend: SupportedBackend = "dotnet",
+): string | undefined {
+  // Test seam: allow tests to point nodeapi at a temporary copy so they can
+  // simulate missing/corrupt assemblies without mutating the real build artifact.
+  if (backend === "dotnet-nodeapi" && process.env.SYSUTILS_PS_TEST_NODEAPI_PATH) {
+    const override = process.env.SYSUTILS_PS_TEST_NODEAPI_PATH;
+    if (existsSync(override) && nodeApiDotNetAvailable()) return override;
+    return undefined;
+  }
+
+  const rel =
+    backend === "dotnet" ? `bin/${cliFileName()}` : nodeapiFileName();
+  const fromOptional = resolveOptionalDepFile(rel);
+  if (fromOptional) {
+    if (backend === "dotnet-nodeapi" && !nodeApiDotNetAvailable())
+      return undefined;
+    return fromOptional;
+  }
+
+  return resolveLocalBinary(backend);
 }
 
 function resolveBackend(

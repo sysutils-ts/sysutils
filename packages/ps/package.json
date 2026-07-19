@@ -10,15 +10,10 @@
     }
   },
   "files": [
-    "binaries.json",
     "dist/index.mjs",
     "dist/index.mjs.map",
     "dist/index.d.mts",
-    "dist/index.d.mts.map",
-    "bin/win32/*/ps.exe",
-    "bin/linux/*/ps",
-    "bin/darwin/*/ps",
-    "bin/nodeapi/**/*"
+    "dist/index.d.mts.map"
   ],
   "publishConfig": {
     "access": "public"

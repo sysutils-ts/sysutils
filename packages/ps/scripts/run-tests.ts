@@ -9,9 +9,11 @@ if (!fs.existsSync(distDir)) {
   );
   process.exit(1);
 }
+const skipBenchmark = process.env.SYSUTILS_PS_SKIP_BENCHMARK === "1";
 const files: string[] = fs
   .readdirSync(distDir)
   .filter((name) => name.endsWith(".test.mjs") || name.endsWith(".test.js"))
+  .filter((name) => !skipBenchmark || !name.includes("benchmark"))
   .map((name) => path.join(distDir, name));
 
 if (files.length === 0) {
