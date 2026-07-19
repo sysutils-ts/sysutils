@@ -141,7 +141,27 @@ jobs:
       - name: Build platform package
         run: node packages/ps/scripts/build-platform-packages.ts ${{ needs.resolve-version.outputs.version }} ${{ matrix.rid }}
 
-      - name: Publish to npm
+      - name: Check if already published
+        id: check
+        working-directory: packages/ps/dist-platforms/${{ matrix.platform }}-${{ matrix.arch }}
+        run: |
+          pkg=$(node -p "require('./package.json').name")
+          ver=$(node -p "require('./package.json').version")
+          if npm view "$pkg@$ver" version --silent 2>/dev/null; then
+            echo "already-published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already-published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm (token fallback)
+        if: steps.check.outputs.already-published == 'false' && secrets.NPM_TOKEN != ''
+        working-directory: packages/ps/dist-platforms/${{ matrix.platform }}-${{ matrix.arch }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+      - name: Publish to npm (OIDC)
+        if: steps.check.outputs.already-published == 'false' && secrets.NPM_TOKEN == ''
         working-directory: packages/ps/dist-platforms/${{ matrix.platform }}-${{ matrix.arch }}
         run: npm publish --provenance --access public
 

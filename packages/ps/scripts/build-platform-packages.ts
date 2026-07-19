@@ -40,6 +40,7 @@ function writePackageJson(
     },
     publishConfig: {
       access: "public",
+      registry: "https://registry.npmjs.org/",
     },
   };
   fs.writeFileSync(
