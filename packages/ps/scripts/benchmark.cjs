@@ -225,6 +225,13 @@ function renderHtml(meta, results) {
   <strong>Warmup:</strong> ${meta.warmup}<br>
   <strong>Date:</strong> ${escapeHtml(meta.date)}
 </p>
+<p>
+  Comparing <code>@sysutils/ps</code> with <code>ps-list</code>, the package it
+  is intended to replace. <code>@sysutils/ps</code> uses native AOT binaries
+  (<code>ps</code> on Unix, <code>ps.exe</code> on Windows) and an optional
+  in-process <code>node-api-dotnet</code> backend when available, so no external
+  <code>ps</code> or <code>tasklist</code> commands are spawned.
+</p>
 <table>
   <thead>
     <tr>
