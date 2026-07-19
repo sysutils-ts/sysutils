@@ -93,3 +93,7 @@ npm run test
 npm run lint
 npm run format
 ```
+
+`eslint.config.ts` is written in TypeScript. `jiti` is pinned so ESLint can load
+it, and `typescript-eslint` provides the parser and recommended rules for
+TypeScript sources.
