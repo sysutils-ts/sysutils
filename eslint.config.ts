@@ -1,7 +1,6 @@
-import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
-export default defineConfig([
+export default tseslint.config(
   {
     ignores: [
       "**/dist/",
@@ -13,16 +12,5 @@ export default defineConfig([
       "**/*.rs",
     ],
   },
-  {
-    files: ["**/*.ts", "**/*.js", "**/*.mjs"],
-    languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      parser: tseslint.parser,
-    },
-    plugins: {
-      "@typescript-eslint": tseslint.plugin,
-    },
-    rules: {},
-  },
-]);
+  ...tseslint.configs.recommended,
+);
