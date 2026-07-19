@@ -114,11 +114,19 @@ jobs:
           merge-multiple: true
 
       - name: Pick Linux badge as the main badge
+        id: pick-badge
         run: |
           mkdir -p _site
-          cp benchmark-output/benchmark-ubuntu-latest.svg _site/benchmark.svg
+          if [ -f benchmark-output/benchmark-ubuntu-latest.svg ]; then
+            cp benchmark-output/benchmark-ubuntu-latest.svg _site/benchmark.svg
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Linux benchmark SVG not found; badge will not be updated"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Deploy to GitHub Pages
+        if: ${{ steps.pick-badge.outputs.exists == 'true' }}
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
