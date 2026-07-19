@@ -15,6 +15,26 @@ const platforms = [
 
 fs.mkdirSync(outDir, { recursive: true });
 
+const rootPkg = {
+  name: "@sysutils/platform-stubs-root",
+  version: "0.0.0",
+  private: true,
+  description:
+    "Temporary workspace root for bootstrapping @sysutils/ps-* platform packages.",
+  workspaces: platforms.map(
+    ([platform, arch]) =>
+      `./${`@sysutils/ps-${platform}-${arch}`
+        .replace("@", "")
+        .replace("/", "-")}`,
+  ),
+};
+
+fs.writeFileSync(
+  path.join(outDir, "package.json"),
+  JSON.stringify(rootPkg, null, 2) + "\n",
+  "utf8",
+);
+
 for (const [platform, arch] of platforms) {
   const name = `@sysutils/ps-${platform}-${arch}`;
   const dir = path.join(outDir, name.replace("@", "").replace("/", "-"));
@@ -53,14 +73,12 @@ for (const [platform, arch] of platforms) {
   console.log(`Created ${dir}`);
 }
 
-console.log(`\nTo publish, run in each directory:\n`);
-console.log(`  cd tmp-platform-stubs/<package-dir>`);
-console.log(`  npm publish --access public`);
-console.log(`\nOr use this PowerShell loop from the repo root:\n`);
-console.log(
-  `  Get-ChildItem -Directory tmp-platform-stubs | ForEach-Object { Push-Location $_.FullName; npm publish --access public; Pop-Location }`,
-);
-console.log(`\nOr this bash loop:\n`);
-console.log(
-  `  for d in tmp-platform-stubs/*; do (cd "$d" && npm publish --access public); done`,
-);
+console.log(`\nTo publish all stubs with one command (using npm workspaces):\n`);
+console.log(`  cd tmp-platform-stubs`);
+console.log(`  npm publish --workspaces --access public`);
+console.log(`\nIf you have a granular token with bypass 2FA, set it first:\n`);
+console.log(`  $env:NODE_AUTH_TOKEN = "npm_..."   # PowerShell`);
+console.log(`  export NODE_AUTH_TOKEN=npm_...     # bash`);
+console.log(`  cd tmp-platform-stubs && npm publish --workspaces --access public`);
+console.log(`\nOr publish each one individually:\n`);
+console.log(`  for d in tmp-platform-stubs/*; do (cd "$d" && npm publish --access public); done`);
