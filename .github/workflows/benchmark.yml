@@ -1,0 +1,70 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Iterations per backend'
+        required: true
+        default: '50'
+        type: string
+      warmup:
+        description: 'Warmup iterations before timing'
+        required: true
+        default: '3'
+        type: string
+      fields:
+        description: 'Fields to request from @sysutils/ps backends (comma-separated)'
+        required: true
+        default: 'pid,ppid,name'
+        type: string
+      compare-ps-list:
+        description: 'Also benchmark ps-list when available'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  benchmark:
+    name: Benchmark (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install ps-list for comparison
+        if: inputs.compare-ps-list
+        continue-on-error: true
+        run: npm install ps-list --no-save -w packages/ps
+
+      - name: Build native CLI
+        run: npm run build:cli -w packages/ps
+
+      - name: Build native in-process backend
+        run: npm run build:nodeapi -w packages/ps
+
+      - name: Build TypeScript
+        run: npm run build -w packages/ps
+
+      - name: Run benchmark
+        shell: bash
+        env:
+          SYSUTILS_PS_BENCHMARK_COMPARE: ${{ inputs.compare-ps-list && '1' || '0' }}
+        run: npm run benchmark -w packages/ps -- --runs ${{ inputs.runs }} --warmup ${{ inputs.warmup }} --fields ${{ inputs.fields }} --compare

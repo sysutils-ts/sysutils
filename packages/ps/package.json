@@ -37,7 +37,8 @@
     "build:all": "node scripts/build-native-all.cjs && tsdown",
     "test": "node scripts/run-tests.cjs",
     "test:dotnet": "dotnet test native/tests/SysUtils.Ps.Tests.csproj",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "benchmark": "node scripts/benchmark.cjs"
   },
   "optionalDependencies": {
     "node-api-dotnet": "0.9.21"
