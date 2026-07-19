@@ -102,14 +102,7 @@ test(
   { skip: !getBinaryPath("dotnet") },
   () => {
     const svgPath = path.join(packageDir, "tmp", "bench-test.svg");
-    const result = run([
-      "--runs",
-      "1",
-      "--warmup",
-      "0",
-      "--svg",
-      svgPath,
-    ]);
+    const result = run(["--runs", "1", "--warmup", "0", "--svg", svgPath]);
     assert.strictEqual(result.status, 0, `expected success: ${result.stderr}`);
     const payload = JSON.parse(result.stdout) as {
       meta: { runs: number; warmup: number; fields: string[] };

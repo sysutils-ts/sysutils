@@ -101,9 +101,10 @@ SYSUTILS_PS_BACKEND=dotnet node app.js
 
 Returns a `Readable` object-mode stream of `ProcessInfo`.
 
-- `options.backend?: "dotnet" | "dotnet-nodeapi" | "auto"` — force a backend
-  or let the package choose. Defaults to `auto` (or
-  `process.env.SYSUTILS_PS_BACKEND`).
+- `options.backend?: "dotnet" | "dotnet-nodeapi" | "proc" | "auto"` — force a
+  backend or let the package choose. Defaults to `auto` (or
+  `process.env.SYSUTILS_PS_BACKEND`). On Linux, `proc` reads `/proc` directly
+  without spawning a native binary.
 - `options.fields?: string[]` — limit fields, when the backend supports it.
 
 The returned stream has a `process` property exposing the spawned
@@ -115,6 +116,18 @@ The returned stream has a `process` property exposing the spawned
 ### `listProcesses(options?)`
 
 `Promise<ProcessInfo[]>` — collects the stream for you.
+
+### `toProcessRow(processInfo)`
+
+Normalizes a `ProcessInfo` into a predictable `ProcessRow`:
+
+```ts
+{ pid, ppid, command, user, startedAt, ... }
+```
+
+`command` falls back from `cmd` to `name`, `user` falls back from a username to
+a numeric `uid` string, and `startedAt` is the Unix epoch in milliseconds. Any
+extra fields on the input are preserved in the spread.
 
 ### `getBinaryPath(backend?)`
 
@@ -128,10 +141,13 @@ interface ProcessInfo {
   pid: number; // process ID
   ppid: number; // parent process ID
   uid?: number; // user ID (Linux)
+  user?: string; // username or uid string, best effort
   name: string; // executable name
   cmd?: string; // full command line (Linux)
+  command?: string; // alias for cmd ?? name
   path?: string; // executable path (Linux, macOS)
   startTime?: Date; // process start time (Linux)
+  startedAt?: number; // process start time as Unix epoch ms
   cpu?: number; // CPU usage as a percent of one CPU (Linux)
   memory?: number; // resident memory as a percent of total RAM (Linux)
 }
@@ -147,6 +163,7 @@ Windows (`pid`, `ppid`, `name`) plus optional extras where available.
 | --------------- | -------------------------- | -------------------------------------------- | ------- |
 | .NET CLI        | `bin/<platform>/<arch>/ps` | Native AOT executable (spawn)                | yes     |
 | .NET in-process | `bin/nodeapi/<rid>/`       | Managed assembly loaded by `node-api-dotnet` | no      |
+| `/proc` (Linux) | `src/proc.ts`              | Pure-JS `/proc` walker                       | no      |
 
 ### .NET CLI (default)
 
@@ -169,6 +186,17 @@ and platform are unaffected, or when you are willing to accept that risk:
 const procs = await listProcesses({ backend: "dotnet-nodeapi" });
 ```
 
+### `/proc` (Linux, fallback)
+
+On Linux, the package can read `/proc/<pid>/stat`, `comm`, `status`, and
+`cmdline` directly in JavaScript. This is used as a fallback when the native
+binaries are not built or installed, and it also avoids the `node-api-dotnet`
+runtime entirely, so it works under Bun without optional dependencies.
+
+```ts
+const procs = await listProcesses({ backend: "proc" });
+```
+
 ## Comparison
 
 | Feature                                                            | `@sysutils/ps` (CLI) | `@sysutils/ps` (nodeapi) | `ps-list`              |
@@ -189,11 +217,11 @@ const procs = await listProcesses({ backend: "dotnet-nodeapi" });
 Measured on a Surface Pro X (Windows 11 ARM64 + WSL2 Ubuntu ARM64, Node.js
 26.x, ~450 processes):
 
-| Backend                                            | Mean `listProcesses()`                         | Notes                                            |
-| -------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------ |
-| `@sysutils/ps` CLI spawn + JSON parse              | ~28 ms (Windows), similar on Linux             | Measured with fields limited to `pid`, `ppid`, and `name`             |
-| `@sysutils/ps` in-proc + JSON parse                | ~6 ms (Windows), ~0.8 ms (Linux)               | Measured with fields limited to `pid`, `ppid`, and `name`; opt-in due to upstream shutdown bug |
-| `ps-list`                                          | unsupported on Windows ARM64, ~7.8 ms on Linux | Spawns `ps` and parses fixed output              |
+| Backend                               | Mean `listProcesses()`                         | Notes                                                                                          |
+| ------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `@sysutils/ps` CLI spawn + JSON parse | ~28 ms (Windows), similar on Linux             | Measured with fields limited to `pid`, `ppid`, and `name`                                      |
+| `@sysutils/ps` in-proc + JSON parse   | ~6 ms (Windows), ~0.8 ms (Linux)               | Measured with fields limited to `pid`, `ppid`, and `name`; opt-in due to upstream shutdown bug |
+| `ps-list`                             | unsupported on Windows ARM64, ~7.8 ms on Linux | Spawns `ps` and parses fixed output                                                            |
 
 The in-process backend is roughly **4–35× faster** than the CLI spawn path and
 `ps-list` on Linux, and it supports Windows ARM64 where `ps-list` does not.
