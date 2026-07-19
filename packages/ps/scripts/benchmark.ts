@@ -64,6 +64,24 @@ const svgFile = getArg("--svg") ?? process.env.SYSUTILS_PS_BENCHMARK_SVG;
 const compare =
   hasArg("--compare") || process.env.SYSUTILS_PS_BENCHMARK_COMPARE === "1";
 
+if (!Number.isFinite(runsArg) || !Number.isInteger(runsArg) || runsArg <= 0) {
+  console.error(
+    `Invalid --runs value: must be a positive integer (got ${getArg("--runs") ?? process.env.SYSUTILS_PS_BENCHMARK_RUNS ?? "50"}).`,
+  );
+  process.exit(1);
+}
+
+if (
+  !Number.isFinite(warmupArg) ||
+  !Number.isInteger(warmupArg) ||
+  warmupArg < 0
+) {
+  console.error(
+    `Invalid --warmup value: must be a non-negative integer (got ${getArg("--warmup") ?? process.env.SYSUTILS_PS_BENCHMARK_WARMUP ?? "3"}).`,
+  );
+  process.exit(1);
+}
+
 function getArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);
   return idx >= 0 && idx + 1 < process.argv.length
@@ -149,6 +167,18 @@ function buildMeta(fields: string[]): Meta {
   };
 }
 
+function tryPushBackend(
+  backends: Backend[],
+  id: string,
+  name: string,
+  getBinaryPath: PsModule["getBinaryPath"],
+  fn: () => Promise<unknown>,
+): void {
+  if (getBinaryPath(id)) {
+    backends.push({ name, id, fn });
+  }
+}
+
 async function resolveBackends(
   listProcesses: PsModule["listProcesses"],
   getBinaryPath: PsModule["getBinaryPath"],
@@ -156,21 +186,21 @@ async function resolveBackends(
 ): Promise<Backend[]> {
   const backends: Backend[] = [];
 
-  if (getBinaryPath("dotnet")) {
-    backends.push({
-      name: "@sysutils/ps CLI",
-      id: "dotnet",
-      fn: () => listProcesses({ backend: "dotnet", fields }),
-    });
-  }
+  tryPushBackend(
+    backends,
+    "dotnet",
+    "@sysutils/ps CLI",
+    getBinaryPath,
+    () => listProcesses({ backend: "dotnet", fields }),
+  );
 
-  if (getBinaryPath("dotnet-nodeapi")) {
-    backends.push({
-      name: "@sysutils/ps in-process",
-      id: "dotnet-nodeapi",
-      fn: () => listProcesses({ backend: "dotnet-nodeapi", fields }),
-    });
-  }
+  tryPushBackend(
+    backends,
+    "dotnet-nodeapi",
+    "@sysutils/ps in-process",
+    getBinaryPath,
+    () => listProcesses({ backend: "dotnet-nodeapi", fields }),
+  );
 
   if (compare) {
     await maybeAddPsListBackend(backends);
@@ -187,7 +217,7 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
       throw new TypeError("ps-list did not export a callable function");
     }
     backends.push({
-      name: "ps-list",
+      name: "ps-list (all fields)",
       id: "ps-list",
       fn: psList as () => Promise<unknown>,
     });
@@ -197,7 +227,7 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
     if (hasArg("--compare")) {
       const err = e instanceof Error ? e : new Error(String(e));
       backends.push({
-        name: "ps-list",
+        name: "ps-list (all fields)",
         id: "ps-list",
         fn: () => {
           throw err;
@@ -214,8 +244,9 @@ async function runBenchmarks(
 ): Promise<Result[]> {
   const results: Result[] = [];
   for (const backend of backends) {
+    const warmupLabel = `${warmup} warmup${warmup === 1 ? "" : "s"}`;
     process.stderr.write(
-      `Benchmarking ${backend.name} (${runs} runs, ${warmup} warmup)... `,
+      `Benchmarking ${backend.name} (${runs} runs, ${warmupLabel})... `,
     );
     const { times, result, error } = await runOne(backend.fn, runs, warmup);
     if (error) {
@@ -234,15 +265,28 @@ async function runBenchmarks(
   return results;
 }
 
+function warnWriteError(label: string, target: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`Failed to write ${label} to ${target}: ${message}`);
+}
+
 function writeOutputs(meta: Meta, results: Result[]): void {
   if (summaryFile) {
-    fs.mkdirSync(path.dirname(summaryFile), { recursive: true });
-    fs.appendFileSync(summaryFile, renderHtml(meta, results));
+    try {
+      fs.mkdirSync(path.dirname(summaryFile), { recursive: true });
+      fs.appendFileSync(summaryFile, renderHtml(meta, results));
+    } catch (e) {
+      warnWriteError("summary", summaryFile, e);
+    }
   }
 
   if (svgFile) {
-    fs.mkdirSync(path.dirname(svgFile), { recursive: true });
-    fs.writeFileSync(svgFile, renderSvg(meta, results), "utf8");
+    try {
+      fs.mkdirSync(path.dirname(svgFile), { recursive: true });
+      fs.writeFileSync(svgFile, renderSvg(meta, results), "utf8");
+    } catch (e) {
+      warnWriteError("SVG", svgFile, e);
+    }
   }
 }
 
@@ -263,12 +307,19 @@ async function main(): Promise<void> {
   const meta = buildMeta(fields);
   const payload = { meta, results };
 
+  // Native backend failures are real measurement failures; the optional ps-list
+  // comparison is allowed to error without failing the whole run.
+  const hasNativeError = results.some(
+    (r) => r.error && r.id !== "ps-list",
+  );
+  const exitCode = hasNativeError ? 1 : 0;
+
   writeOutputs(meta, results);
 
   // Write JSON to stdout and exit explicitly. Forcing exit avoids the
   // node-api-dotnet shutdown hang that can occur in some Node.js versions.
   process.stdout.write(JSON.stringify(payload, null, 2) + "\n", () => {
-    process.exit(0);
+    process.exit(exitCode);
   });
 }
 
@@ -366,7 +417,9 @@ function renderSvg(meta: Meta, results: Result[]): string {
       const p95 = r.error ? "—" : format(s!.p95);
       const p99 = r.error ? "—" : format(s!.p99);
       const count = r.error ? "—" : String(r.count);
-      const errorText = r.error ? ` (${escapeXml(r.error)})` : "";
+      const errorText = r.error
+        ? ` (${escapeXml(truncate(r.error, 40))})`
+        : "";
       const name = escapeXml(r.name) + errorText;
       const fill = r.error ? "#dc2626" : "#111827";
       return `<rect x="0" y="${y - rowHeight + 4}" width="${width}" height="${rowHeight}" fill="${bg}" />
@@ -408,6 +461,11 @@ function escapeXml(s: unknown): string {
 
 function format(ms: number): string {
   return Number(ms).toFixed(3);
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return `${s.slice(0, max)}…`;
 }
 
 main().catch((err) => {
