@@ -1,3 +1,20 @@
+# [1.1.0](https://github.com/sysutils-ts/sysutils/compare/v1.0.0...v1.1.0) (2026-07-19)
+
+
+### Bug Fixes
+
+* allow resolve-version job to verify git push permissions ([f3b1703](https://github.com/sysutils-ts/sysutils/commit/f3b17034fa6f0dbee1793ee287c67e37aeb2be97))
+* bootstrap per-platform packages with token fallback ([ac44146](https://github.com/sysutils-ts/sysutils/commit/ac4414685fc99277d7e791ba177c8900d3d6e254))
+* silence semantic-release logs while resolving version ([c6c2523](https://github.com/sysutils-ts/sysutils/commit/c6c2523b9e34c9e244b2994834a7841403ca4dd4))
+* use steps context instead of secrets in if conditions ([8993d4c](https://github.com/sysutils-ts/sysutils/commit/8993d4c18df149862171eb0c1c744176e06465ca))
+* validate NPM_TOKEN does not require 2FA in CI ([90fe712](https://github.com/sysutils-ts/sysutils/commit/90fe712f783ace6f74eed0ea0a093311c685b6dc))
+* write version output directly to GITHUB_OUTPUT ([cc728a4](https://github.com/sysutils-ts/sysutils/commit/cc728a4e39c776cd5d39b65be1892fe1a060200e))
+
+
+### Features
+
+* split native binaries into per-platform optional dependencies ([#16](https://github.com/sysutils-ts/sysutils/issues/16)) ([ad2640a](https://github.com/sysutils-ts/sysutils/commit/ad2640ad98d21f03d32fbd35abac5baef1eaf671))
+
 # 1.0.0 (2026-07-19)
 
 
