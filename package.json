@@ -13,7 +13,7 @@
   "scripts": {
     "build": "npm run build -w packages/ps",
     "test": "npm run test -w packages/ps",
-    "lint": "eslint .",
+    "lint": "eslint . --no-error-on-unmatched-pattern",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "changeset": "changeset"
@@ -22,7 +22,9 @@
     "@changesets/cli": "^2.27.0",
     "@types/node": "^22.0.0",
     "eslint": "^9.7.0",
+    "jiti": "2.7.0",
     "prettier": "^3.0.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "typescript-eslint": "8.63.0"
   }
 }

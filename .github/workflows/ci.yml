@@ -36,8 +36,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - run: node packages/ps/scripts/build-native-all.cjs cli ${{ matrix.rid }}
-      - run: node packages/ps/scripts/build-native-all.cjs nodeapi ${{ matrix.rid }}
+      - run: node packages/ps/scripts/build-native-all.ts cli ${{ matrix.rid }}
+      - run: node packages/ps/scripts/build-native-all.ts nodeapi ${{ matrix.rid }}

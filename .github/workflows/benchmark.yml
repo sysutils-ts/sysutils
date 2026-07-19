@@ -1,0 +1,138 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Iterations per backend'
+        required: true
+        default: '50'
+        type: string
+      warmup:
+        description: 'Warmup iterations before timing'
+        required: true
+        default: '3'
+        type: string
+      fields:
+        description: 'Fields to request from @sysutils/ps backends (comma-separated)'
+        required: true
+        default: 'pid,ppid,name'
+        type: string
+      compare-ps-list:
+        description: 'Also benchmark ps-list when available'
+        required: true
+        default: true
+        type: boolean
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/benchmark.yml'
+      - 'packages/ps/scripts/benchmark.ts'
+      - 'packages/ps/package.json'
+      - 'packages/ps/src/**/*.ts'
+      - 'packages/ps/binaries.json'
+      - 'packages/ps/native/**'
+
+env:
+  BENCHMARK_RUNS: ${{ inputs.runs || '20' }}
+  BENCHMARK_WARMUP: ${{ inputs.warmup || '2' }}
+  BENCHMARK_FIELDS: ${{ inputs.fields || 'pid,ppid,name' }}
+  SYSUTILS_PS_BENCHMARK_COMPARE: ${{ inputs.compare-ps-list && '1' || '0' }}
+
+jobs:
+  benchmark:
+    name: Benchmark (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install ps-list for comparison
+        if: env.SYSUTILS_PS_BENCHMARK_COMPARE == '1'
+        continue-on-error: true
+        run: npm install ps-list@9.0.0 --no-save -w packages/ps
+
+      - name: Build native CLI
+        run: npm run build:cli -w packages/ps
+
+      - name: Build native in-process backend
+        run: npm run build:nodeapi -w packages/ps
+
+      - name: Build TypeScript
+        run: npm run build -w packages/ps
+
+      - name: Run benchmark
+        shell: bash
+        run: |
+          mkdir -p benchmark-output
+          COMPARE_FLAG=""
+          if [ "$SYSUTILS_PS_BENCHMARK_COMPARE" = "1" ]; then
+            COMPARE_FLAG="--compare"
+          fi
+          node packages/ps/scripts/benchmark.ts \
+            --runs "$BENCHMARK_RUNS" \
+            --warmup "$BENCHMARK_WARMUP" \
+            --fields "$BENCHMARK_FIELDS" \
+            $COMPARE_FLAG \
+            --svg "benchmark-output/benchmark-${{ matrix.os }}.svg"
+
+      - name: Upload SVG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ matrix.os }}
+          path: benchmark-output/benchmark-${{ matrix.os }}.svg
+
+  publish-badge:
+    name: Publish benchmark badge
+    needs: benchmark
+    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download all benchmark SVGs
+        uses: actions/download-artifact@v4
+        with:
+          path: benchmark-output
+          merge-multiple: true
+
+      - name: Pick Linux badge as the main badge
+        id: pick-badge
+        run: |
+          mkdir -p _site
+          if [ -f benchmark-output/benchmark-ubuntu-latest.svg ]; then
+            cp benchmark-output/benchmark-ubuntu-latest.svg _site/benchmark.svg
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Linux benchmark SVG not found; badge will not be updated"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to GitHub Pages
+        if: ${{ steps.pick-badge.outputs.exists == 'true' }}
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          publish_branch: gh-pages
+          force_orphan: true

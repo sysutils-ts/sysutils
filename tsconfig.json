@@ -1,4 +1,12 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["packages/ps/src/**/*.ts"]
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "packages/ps/src/**/*.ts",
+    "packages/ps/scripts/**/*.ts",
+    "*.ts"
+  ]
 }

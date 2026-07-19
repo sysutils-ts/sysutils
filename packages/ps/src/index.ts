@@ -208,7 +208,14 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
     crlfDelay: Infinity,
   });
 
-  const stream = new Readable({ objectMode: true, read() {} }) as ProcessStream;
+  const stream = new Readable({
+    objectMode: true,
+    read() {},
+    destroy(err, cb) {
+      child.kill();
+      cb(err);
+    },
+  }) as ProcessStream;
   stream.process = child;
 
   parser.on("line", (line) => {

@@ -24,7 +24,8 @@
     "entry": [
       "src/index.ts",
       "src/index.test.ts",
-      "src/nodeapi.test.ts"
+      "src/nodeapi.test.ts",
+      "src/benchmark.test.ts"
     ],
     "dts": true,
     "sourcemap": true
@@ -32,12 +33,13 @@
   "scripts": {
     "build": "tsdown",
     "build:tsdown": "tsdown",
-    "build:cli": "node scripts/build-cli.cjs",
-    "build:nodeapi": "node scripts/build-nodeapi.cjs",
-    "build:all": "node scripts/build-native-all.cjs && tsdown",
-    "test": "node scripts/run-tests.cjs",
+    "build:cli": "node scripts/build-cli.ts",
+    "build:nodeapi": "node scripts/build-nodeapi.ts",
+    "build:all": "node scripts/build-native-all.ts && tsdown",
+    "test": "node scripts/run-tests.ts",
     "test:dotnet": "dotnet test native/tests/SysUtils.Ps.Tests.csproj",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "benchmark": "node scripts/benchmark.ts"
   },
   "optionalDependencies": {
     "node-api-dotnet": "0.9.21"
