@@ -1,98 +1,195 @@
-import { spawn, type ChildProcess, type ChildProcessByStdio } from "node:child_process";
+import {
+  spawn,
+  type ChildProcess,
+  type ChildProcessByStdio,
+} from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+import { createRequire } from "node:module";
 import { Readable } from "node:stream";
 import type { Readable as ReadableStream } from "node:stream";
 import { fileURLToPath } from "node:url";
 
+const require = createRequire(import.meta.url);
+
+let cachedDotnetAddon:
+  | { path: string; addon: { PsModule: { listProcesses: (fields: string) => string } } }
+  | undefined;
+
 export interface ProcessInfo {
   pid: number;
   ppid: number;
+  uid?: number;
   name: string;
-  command?: string;
-  memory?: number;
+  cmd?: string;
+  path?: string;
+  startTime?: Date;
   cpu?: number;
+  memory?: number;
   [key: string]: unknown;
 }
 
 export interface PsOptions {
-  backend?: "rust" | "dotnet" | "auto";
+  backend?: "dotnet" | "dotnet-nodeapi" | "auto";
   fields?: string[];
 }
 
-type SupportedBackend = "rust" | "dotnet";
-
-const BACKEND_PACKAGES: Record<SupportedBackend, string> = {
-  rust: "@sysutils/ps-rust",
-  dotnet: "@sysutils/ps-dotnet",
-};
+type SupportedBackend = "dotnet" | "dotnet-nodeapi";
 
 export interface ProcessStream extends ReadableStream {
-  process: ChildProcess;
+  process?: ChildProcess;
 }
 
 function backendFromEnv(): SupportedBackend | undefined {
   const env = process.env.SYSUTILS_PS_BACKEND;
-  if (env === "rust" || env === "dotnet") return env;
+  if (env === "dotnet" || env === "dotnet-nodeapi") return env;
   return undefined;
 }
 
-function readBinariesMap(
-  packageName: string,
-): Record<string, string> | undefined {
+type BinariesMap = Record<SupportedBackend, Record<string, string>>;
+
+function readBinariesMap(): BinariesMap | undefined {
   try {
-    const packageJsonUrl = new URL(
-      import.meta.resolve(`${packageName}/package.json`),
-    );
-    const binariesUrl = new URL("./binaries.json", packageJsonUrl);
+    const binariesUrl = new URL("../binaries.json", import.meta.url);
     return JSON.parse(
       readFileSync(fileURLToPath(binariesUrl), "utf8"),
-    ) as Record<string, string>;
+    ) as BinariesMap;
   } catch {
     return undefined;
+  }
+}
+
+function nodeApiDotNetAvailable(): boolean {
+  try {
+    require.resolve("node-api-dotnet/net8.0");
+    return true;
+  } catch {
+    return false;
   }
 }
 
 export function getBinaryPath(
-  backend: SupportedBackend = "rust",
+  backend: SupportedBackend = "dotnet",
 ): string | undefined {
-  const packageName = BACKEND_PACKAGES[backend];
-  const binaries = readBinariesMap(packageName);
+  // Test seam: allow tests to point nodeapi at a temporary copy so they can
+  // simulate missing/corrupt assemblies without mutating the real build artifact.
+  if (backend === "dotnet-nodeapi" && process.env.SYSUTILS_PS_TEST_NODEAPI_PATH) {
+    const override = process.env.SYSUTILS_PS_TEST_NODEAPI_PATH;
+    if (existsSync(override) && nodeApiDotNetAvailable()) return override;
+    return undefined;
+  }
+
+  const binaries = readBinariesMap();
   if (!binaries) return undefined;
 
+  const backendBinaries = binaries[backend];
+  if (!backendBinaries) return undefined;
+
   const key = `${process.platform}-${process.arch}`;
-  const rel = binaries[key];
+  const rel = backendBinaries[key];
   if (!rel) return undefined;
 
   try {
-    const packageJsonUrl = new URL(
-      import.meta.resolve(`${packageName}/package.json`),
-    );
-    const binaryUrl = new URL(rel, packageJsonUrl);
+    const binaryUrl = new URL(`../${rel}`, import.meta.url);
     const binaryPath = fileURLToPath(binaryUrl);
-    return existsSync(binaryPath) ? binaryPath : undefined;
+    if (!existsSync(binaryPath)) return undefined;
+    if (backend === "dotnet-nodeapi" && !nodeApiDotNetAvailable())
+      return undefined;
+    return binaryPath;
   } catch {
     return undefined;
   }
 }
 
-function resolveBackend(options?: PsOptions): SupportedBackend {
+function resolveBackend(
+  options?: PsOptions,
+  allowNodeapi = true,
+): SupportedBackend {
   const requested = options?.backend ?? backendFromEnv() ?? "auto";
-  if (requested !== "auto") return requested;
-  for (const backend of ["rust", "dotnet"] as SupportedBackend[]) {
+  if (requested !== "auto") {
+    if (requested !== "dotnet" && requested !== "dotnet-nodeapi") {
+      throw new Error(
+        "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
+      );
+    }
+    return requested;
+  }
+  const order: SupportedBackend[] = allowNodeapi
+    ? ["dotnet", "dotnet-nodeapi"]
+    : ["dotnet"];
+  for (const backend of order) {
     if (getBinaryPath(backend)) return backend;
   }
   throw new Error(
-    "No @sysutils/ps backend found. Install @sysutils/ps-rust or @sysutils/ps-dotnet and build the native binary.",
+    "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
   );
 }
 
+function normalizeProcessInfo(obj: Record<string, unknown>): ProcessInfo {
+  if (typeof obj.startTime === "string") {
+    const d = new Date(obj.startTime as string);
+    if (!Number.isNaN(d.getTime())) obj.startTime = d;
+  }
+  return obj as ProcessInfo;
+}
+
+function pushJsonLine(stream: ProcessStream, line: string): void {
+  if (!line) return;
+  try {
+    const raw = JSON.parse(line) as Record<string, unknown>;
+    stream.push(normalizeProcessInfo(raw));
+  } catch (err) {
+    stream.emit("parseError", err instanceof Error ? err : new Error(String(err)));
+  }
+}
+
+function createNodeapiStream(
+  options: PsOptions | undefined,
+  binaryPath: string,
+): ProcessStream {
+  const stream = new Readable({
+    objectMode: true,
+    read() {},
+  }) as ProcessStream;
+
+  // Defer the synchronous in-process work so callers that consume via the
+  // stream/async iterator do not block the event loop during setup.
+  setImmediate(() => {
+    try {
+      const json = getNodeapiJson(options, binaryPath);
+      for (const line of json.split("\n")) {
+        pushJsonLine(stream, line);
+      }
+      stream.push(null);
+    } catch (err) {
+      stream.destroy(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
+
+  return stream;
+}
+
 export function createProcessStream(options?: PsOptions): ProcessStream {
-  const backend = resolveBackend(options);
+  const backend = resolveBackend(options, true);
+  if (backend === "dotnet-nodeapi") {
+    const binaryPath = getBinaryPath("dotnet-nodeapi");
+    if (!binaryPath) {
+      if (!nodeApiDotNetAvailable()) {
+        throw new Error(
+          `Backend "dotnet-nodeapi" was selected but the node-api-dotnet runtime package is not installed.`,
+        );
+      }
+      throw new Error(
+        `Backend "dotnet-nodeapi" was selected but its native binary is missing. Run \`npm run build:nodeapi\` in @sysutils/ps.`,
+      );
+    }
+    return createNodeapiStream(options, binaryPath);
+  }
+
   const binaryPath = getBinaryPath(backend);
   if (!binaryPath) {
     throw new Error(
-      `Backend "${backend}" was selected but its native binary is missing. Run the build for ${BACKEND_PACKAGES[backend]}.`,
+      `Backend "${backend}" was selected but its native binary is missing. Run \`npm run build:cli\` in @sysutils/ps.`,
     );
   }
 
@@ -115,16 +212,7 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
   stream.process = child;
 
   parser.on("line", (line) => {
-    if (!line) return;
-    try {
-      const obj = JSON.parse(line) as ProcessInfo;
-      stream.push(obj);
-    } catch (err) {
-      stream.emit(
-        "parseError",
-        err instanceof Error ? err : new Error(String(err)),
-      );
-    }
+    pushJsonLine(stream, line);
   });
 
   parser.on("close", () => {
@@ -153,12 +241,45 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
   return stream;
 }
 
-export async function listProcesses(
-  options?: PsOptions,
-): Promise<ProcessInfo[]> {
+function loadDotnetNodeapi(binaryPath: string): void {
+  if (cachedDotnetAddon && cachedDotnetAddon.path === binaryPath) return;
+  const dotnet = require("node-api-dotnet/net8.0") as {
+    require: (path: string) => {
+      PsModule: { listProcesses: (fields: string) => string };
+    };
+  };
+  cachedDotnetAddon = { path: binaryPath, addon: dotnet.require(binaryPath) };
+}
+
+function getNodeapiJson(
+  options: PsOptions | undefined,
+  binaryPath: string,
+): string {
+  loadDotnetNodeapi(binaryPath);
+  const fields = options?.fields?.join(",") ?? "";
+  return cachedDotnetAddon!.addon.PsModule.listProcesses(fields);
+}
+
+async function collectStream(stream: ProcessStream): Promise<ProcessInfo[]> {
   const result: ProcessInfo[] = [];
-  for await (const proc of createProcessStream(options)) {
+  for await (const proc of stream) {
     result.push(proc);
   }
   return result;
+}
+
+export async function listProcesses(
+  options?: PsOptions,
+): Promise<ProcessInfo[]> {
+  const backend = resolveBackend(options, true);
+  if (backend !== "dotnet-nodeapi" || options?.backend === "dotnet-nodeapi") {
+    return collectStream(createProcessStream(options));
+  }
+
+  // Auto or env-selected nodeapi: try it, then fall back to the dotnet CLI.
+  try {
+    return await collectStream(createProcessStream(options));
+  } catch {
+    return listProcesses({ ...options, backend: "dotnet" });
+  }
 }

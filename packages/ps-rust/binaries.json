@@ -1,8 +1,0 @@
-{
-  "win32-x64": "bin/win32/x64/ps.exe",
-  "win32-arm64": "bin/win32/arm64/ps.exe",
-  "darwin-x64": "bin/darwin/x64/ps",
-  "darwin-arm64": "bin/darwin/arm64/ps",
-  "linux-x64": "bin/linux/x64/ps",
-  "linux-arm64": "bin/linux/arm64/ps"
-}

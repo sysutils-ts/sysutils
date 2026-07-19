@@ -9,30 +9,33 @@ JavaScript API.
 
 ## Packages
 
-| package | description |
-|---|---|
+| package                 | description                                                    |
+| ----------------------- | -------------------------------------------------------------- |
 | [`@sysutils/ps`](./packages/ps) | Cross-platform process listing as a Node.js `Readable` stream. |
-| [`@sysutils/ps-rust`](./packages/ps-rust) | Native Rust backend for `@sysutils/ps`. |
-| [`@sysutils/ps-dotnet`](./packages/ps-dotnet) | Native .NET backend for `@sysutils/ps`. |
 
 ## Layout
 
 ```
 packages/
-  ps/          # Node.js entrypoint (@sysutils/ps)
-  ps-rust/     # Rust crate + npm binary package
-  ps-dotnet/   # .NET project + npm binary package
+  ps/                   # @sysutils/ps package
+    src/                # TypeScript entrypoint and tests
+    native/cli/         # .NET AOT CLI backend source
+    native/nodeapi/     # in-process .NET backend source via node-api-dotnet
+    native/tests/       # .NET unit tests
+    scripts/            # native build helpers
+    bin/                # published native binaries (ignored in git)
+    dist/               # TypeScript bundle (ignored in git)
+    binaries.json       # backend binary manifest
 .github/
-  workflows/   # CI builds for native binaries
-.agents/       # Agent rules and skills
-docs/adr/      # Architecture decision records
+  workflows/            # CI builds for native binaries
+.agents/                # Agent rules and skills
+docs/adr/               # Architecture decision records
 ```
 
 ## Tooling
 
 - Node.js `>=24` with `npm` workspaces.
-- Rust toolchain (for `ps-rust`).
-- .NET 8 SDK (for `ps-dotnet`).
+- .NET 8 SDK (for building the `@sysutils/ps` native backends).
 
 ## Read-first
 

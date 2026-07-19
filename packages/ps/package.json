@@ -1,28 +1,50 @@
 {
   "name": "@sysutils/ps",
   "version": "0.1.0",
-  "description": "Cross-platform process listing as a Node.js Readable stream.",
+  "description": "Fast, cross-platform process listing as a Node.js Readable stream.",
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
     }
   },
   "files": [
-    "dist"
+    "binaries.json",
+    "dist/index.mjs",
+    "dist/index.mjs.map",
+    "dist/index.d.mts",
+    "dist/index.d.mts.map",
+    "bin/win32/*/ps.exe",
+    "bin/linux/*/ps",
+    "bin/darwin/*/ps",
+    "bin/nodeapi/**/*"
   ],
+  "tsdown": {
+    "entry": [
+      "src/index.ts",
+      "src/index.test.ts",
+      "src/nodeapi.test.ts"
+    ],
+    "dts": true,
+    "sourcemap": true
+  },
   "scripts": {
-    "build": "tsc",
-    "test": "node --test dist/**/*.test.js",
+    "build": "tsdown",
+    "build:tsdown": "tsdown",
+    "build:cli": "node scripts/build-cli.cjs",
+    "build:nodeapi": "node scripts/build-nodeapi.cjs",
+    "build:all": "node scripts/build-native-all.cjs && tsdown",
+    "test": "node scripts/run-tests.cjs",
+    "test:dotnet": "dotnet test native/tests/SysUtils.Ps.Tests.csproj",
     "typecheck": "tsc --noEmit"
   },
   "optionalDependencies": {
-    "@sysutils/ps-rust": "^0.1.0",
-    "@sysutils/ps-dotnet": "^0.1.0"
+    "node-api-dotnet": "0.9.21"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "tsdown": "0.22.4",
     "typescript": "^5.5.0"
   }
 }
