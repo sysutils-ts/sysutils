@@ -12,5 +12,8 @@ export default tseslint.config(
       "**/*.rs",
     ],
   },
-  ...tseslint.configs.recommended,
+  {
+    files: ["**/*.ts", "**/*.js", "**/*.mjs"],
+    extends: tseslint.configs.recommended,
+  },
 );
