@@ -50,19 +50,29 @@ if (!fs.existsSync(distIndex)) {
   process.exit(1);
 }
 
-const runsArg = parsePositiveInt(
+const runsArg = parseInteger(
   getArg("--runs") ?? process.env.SYSUTILS_PS_BENCHMARK_RUNS,
   50,
   "--runs",
+  1,
 );
-const warmupArg = parseNonNegativeInt(
+const warmupArg = parseInteger(
   getArg("--warmup") ?? process.env.SYSUTILS_PS_BENCHMARK_WARMUP,
   3,
   "--warmup",
+  0,
 );
 const fieldsArg = getArg("--fields") ?? "pid,ppid,name";
-const summaryFile = getArg("--summary") ?? process.env.GITHUB_STEP_SUMMARY;
-const svgFile = getArg("--svg") ?? process.env.SYSUTILS_PS_BENCHMARK_SVG;
+const summaryFile = resolveCliOutputPath(
+  getArg("--summary"),
+  process.env.GITHUB_STEP_SUMMARY,
+  "--summary",
+);
+const svgFile = resolveCliOutputPath(
+  getArg("--svg"),
+  process.env.SYSUTILS_PS_BENCHMARK_SVG,
+  "--svg",
+);
 const compare =
   hasArg("--compare") || process.env.SYSUTILS_PS_BENCHMARK_COMPARE === "1";
 
@@ -77,34 +87,56 @@ function hasArg(name: string): boolean {
   return process.argv.includes(name);
 }
 
-function parsePositiveInt(
+function resolveCliOutputPath(
   raw: string | undefined,
-  defaultValue: number,
+  envValue: string | undefined,
   name: string,
-): number {
-  const str = (raw ?? String(defaultValue)).trim();
-  if (!/^[1-9]\d*$/.test(str)) {
+): string | undefined {
+  const source = raw ?? envValue;
+  if (!source) return undefined;
+
+  // Environment-provided paths (e.g. GITHUB_STEP_SUMMARY) are trusted.
+  if (raw === undefined) return source;
+
+  const resolved = path.resolve(process.cwd(), source);
+  const cwd = path.resolve(process.cwd());
+  const rel = path.relative(cwd, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
     console.error(
-      `Invalid ${name} value: must be a positive integer (got "${str}").`,
+      `Invalid ${name}: must be a path inside the current working directory.`,
     );
     process.exit(1);
   }
-  return Number(str);
+  return resolved;
 }
 
-function parseNonNegativeInt(
+function parseInteger(
   raw: string | undefined,
   defaultValue: number,
   name: string,
+  min: number,
 ): number {
   const str = (raw ?? String(defaultValue)).trim();
   if (!/^\d+$/.test(str)) {
     console.error(
-      `Invalid ${name} value: must be a non-negative integer (got "${str}").`,
+      `Invalid ${name} value: must be an integer (got "${str}").`,
     );
     process.exit(1);
   }
-  return Number(str);
+  const n = Number(str);
+  if (!Number.isFinite(n)) {
+    console.error(
+      `Invalid ${name} value: number is too large (got "${str}").`,
+    );
+    process.exit(1);
+  }
+  if (n < min) {
+    console.error(
+      `Invalid ${name} value: must be at least ${min} (got ${n}).`,
+    );
+    process.exit(1);
+  }
+  return n;
 }
 
 function parseFields(raw: string): string[] {
@@ -181,45 +213,43 @@ function buildMeta(fields: string[]): Meta {
   };
 }
 
-function tryPushBackend(
-  backends: Backend[],
-  id: string,
-  name: string,
-  getBinaryPath: PsModule["getBinaryPath"],
-  fn: () => Promise<unknown>,
-): void {
-  if (getBinaryPath(id)) {
-    backends.push({ name, id, fn });
-  }
+interface BackendDescriptor {
+  id: string;
+  name: string;
 }
 
-async function resolveBackends(
+const NATIVE_BACKEND_DESCRIPTORS: BackendDescriptor[] = [
+  { id: "dotnet", name: "@sysutils/ps CLI" },
+  { id: "dotnet-nodeapi", name: "@sysutils/ps in-process" },
+];
+
+function resolveBackends(
+  listProcesses: PsModule["listProcesses"],
+  getBinaryPath: PsModule["getBinaryPath"],
+  fields: string[],
+): Backend[] {
+  const backends: Backend[] = [];
+  for (const { id, name } of NATIVE_BACKEND_DESCRIPTORS) {
+    if (getBinaryPath(id)) {
+      backends.push({
+        name,
+        id,
+        fn: () => listProcesses({ backend: id, fields }),
+      });
+    }
+  }
+  return backends;
+}
+
+async function resolveAllBackends(
   listProcesses: PsModule["listProcesses"],
   getBinaryPath: PsModule["getBinaryPath"],
   fields: string[],
 ): Promise<Backend[]> {
-  const backends: Backend[] = [];
-
-  tryPushBackend(
-    backends,
-    "dotnet",
-    "@sysutils/ps CLI",
-    getBinaryPath,
-    () => listProcesses({ backend: "dotnet", fields }),
-  );
-
-  tryPushBackend(
-    backends,
-    "dotnet-nodeapi",
-    "@sysutils/ps in-process",
-    getBinaryPath,
-    () => listProcesses({ backend: "dotnet-nodeapi", fields }),
-  );
-
+  const backends = resolveBackends(listProcesses, getBinaryPath, fields);
   if (compare) {
     await maybeAddPsListBackend(backends);
   }
-
   return backends;
 }
 
@@ -231,17 +261,17 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
       throw new TypeError("ps-list did not export a callable function");
     }
     backends.push({
-      name: "ps-list (all fields)",
+      name: "ps-list (full list, all fields)",
       id: "ps-list",
       fn: psList as () => Promise<unknown>,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.warn(`ps-list comparison unavailable: ${message}`);
-    if (hasArg("--compare")) {
+    if (compare) {
       const err = e instanceof Error ? e : new Error(String(e));
       backends.push({
-        name: "ps-list (all fields)",
+        name: "ps-list (full list, all fields)",
         id: "ps-list",
         fn: () => {
           throw err;
@@ -308,7 +338,11 @@ async function main(): Promise<void> {
   const ps = (await import(pathToFileURL(distIndex).href)) as PsModule;
   const { listProcesses, getBinaryPath } = ps;
   const fields = parseFields(fieldsArg);
-  const backends = await resolveBackends(listProcesses, getBinaryPath, fields);
+  if (fields.length === 0) {
+    console.error("Invalid --fields: at least one field is required.");
+    process.exit(1);
+  }
+  const backends = await resolveAllBackends(listProcesses, getBinaryPath, fields);
 
   if (backends.length === 0) {
     console.error(
@@ -356,10 +390,10 @@ function renderHtml(meta: Meta, results: Result[]): string {
     })
     .join("\n");
 
-  const compareNote = results.some((r) => r.id === "ps-list")
+  const compareNote = compare
     ? `<p>
-  Comparing <code>@sysutils/ps</code> with <code>ps-list</code>, the package it
-  is intended to replace.
+  Comparing <code>@sysutils/ps</code> with <code>ps-list</code> (full list, all
+  fields), the package it is intended to replace.
 </p>`
     : "";
 
