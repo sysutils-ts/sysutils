@@ -6,3 +6,7 @@ engines:
   eslint-8:
     exclude_paths:
       - "packages/ps/src/**"
+  opengrep:
+    enabled: true
+    disable_rules:
+      - "codacy.csharp.security.null-dereference"
