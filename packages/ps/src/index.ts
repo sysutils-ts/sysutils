@@ -18,7 +18,12 @@ import {
 const require = createRequire(import.meta.url);
 
 export { toProcessRow } from "./types.js";
-export type { ProcessInfo, ProcessRow, PsOptions, ProcessStream } from "./types.js";
+export type {
+  ProcessInfo,
+  ProcessRow,
+  PsOptions,
+  ProcessStream,
+} from "./types.js";
 
 let cachedDotnetAddon:
   | {
@@ -143,16 +148,16 @@ export function getBinaryPath(
 }
 
 function resolveAutoBackend(): SupportedBackend {
+  if (process.platform === "linux" && procBackendAvailable()) return "proc";
   if (getBinaryPath("dotnet")) return "dotnet";
+  if (getBinaryPath("dotnet-nodeapi")) return "dotnet-nodeapi";
   if (procBackendAvailable()) return "proc";
   throw new Error(
     "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
   );
 }
 
-function resolveExplicitBackend(
-  requested: SupportedBackend,
-): SupportedBackend {
+function resolveExplicitBackend(requested: SupportedBackend): SupportedBackend {
   if (requested === "proc") {
     if (!procBackendAvailable()) {
       throw new Error("The /proc backend is only available on Linux.");

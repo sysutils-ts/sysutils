@@ -105,6 +105,15 @@ function getUser(uid: number | null): string | null {
   return null;
 }
 
+function getBackendUser(
+  raw: Record<string, unknown>,
+  uid: number | null,
+): string | null {
+  const rawUser = toStringOrNull(raw.user);
+  if (rawUser !== null && rawUser.length > 0) return rawUser;
+  return getUser(uid);
+}
+
 function buildBaseProcess(raw: Record<string, unknown>): BaseProcess {
   const pid = typeof raw.pid === "number" ? raw.pid : Number(raw.pid);
   const ppid = typeof raw.ppid === "number" ? raw.ppid : Number(raw.ppid);
@@ -117,7 +126,7 @@ function buildBaseProcess(raw: Record<string, unknown>): BaseProcess {
   const startTime = toDateOrNull(raw.startTime);
   const command = getCommand(cmd, name);
   const startedAt = startTime ? startTime.getTime() : null;
-  const user = getUser(uid);
+  const user = getBackendUser(raw, uid);
 
   return {
     pid,

@@ -65,6 +65,22 @@ public class JsonWriterTests
     }
 
     [Fact]
+    public void Write_IncludesUserWhenSet()
+    {
+        var sw = new StringWriter();
+        JsonWriter.Write(sw, new ProcessInfo
+        {
+            Pid = 1,
+            Uid = 1000,
+            User = "alice",
+            Name = "node",
+        }, ProcessFields.All);
+        var doc = JsonDocument.Parse(sw.ToString());
+        Assert.Equal("alice", doc.RootElement.GetProperty("user").GetString());
+        Assert.Equal(1000, doc.RootElement.GetProperty("uid").GetInt32());
+    }
+
+    [Fact]
     public void Write_PreservesNullValues()
     {
         var sw = new StringWriter();
