@@ -101,7 +101,7 @@ internal readonly struct Options(ProcessFields fields) : IEquatable<Options>
                 "uid" => ProcessFields.Uid,
                 "user" => ProcessFields.User | ProcessFields.Uid,
                 "path" => ProcessFields.Path,
-                "starttime" or "start" or "startTime" => ProcessFields.StartTime,
+                "starttime" or "start" => ProcessFields.StartTime,
                 _ => throw new ArgumentException($"Unknown field: {token}")
             };
 
@@ -244,7 +244,7 @@ internal sealed class JsonWriter
             WriteStartTime(ref first, p);
         }
 
-        if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0 || fields == 0)
+        if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0)
         {
             WriteUser(ref first, p);
         }
@@ -524,49 +524,60 @@ internal static class WindowsReader
         var entrySize = Unsafe.SizeOf<SystemProcessInformation>();
         while (offset + entrySize <= returnLength)
         {
-            var p = MemoryMarshal.AsRef<SystemProcessInformation>(span[offset..]);
-            var pid = p.UniqueProcessId.ToInt32();
-            var ppid = p.InheritedFromUniqueProcessId.ToInt32();
-
-            string? name = null;
-            if (p.ImageName.Buffer != IntPtr.Zero && p.ImageName.Length > 0)
+            var nextOffset = 0u;
+            try
             {
-                name = Marshal.PtrToStringUni(p.ImageName.Buffer, p.ImageName.Length / 2);
-            }
+                var p = MemoryMarshal.AsRef<SystemProcessInformation>(span[offset..]);
+                nextOffset = p.NextEntryOffset;
+                var pid = p.UniqueProcessId.ToInt32();
+                var ppid = p.InheritedFromUniqueProcessId.ToInt32();
 
-            if (pid != 0)
-            {
-                string? startTime = null;
-                if (((fields & ProcessFields.StartTime) != 0 || fields == 0) && p.CreateTime != 0)
+                string? name = null;
+                if (p.ImageName.Buffer != IntPtr.Zero && p.ImageName.Length > 0)
                 {
-                    startTime = DateTime.FromFileTimeUtc(p.CreateTime).ToString("o");
+                    name = Marshal.PtrToStringUni(p.ImageName.Buffer, p.ImageName.Length / 2);
                 }
 
-                var wantsUser = (fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0 || fields == 0;
-                var uid = -1;
-                string? user = null;
-                if (wantsUser)
+                if (pid != 0)
                 {
-                    TryGetProcessOwner(pid, out uid, out user);
-                }
+                    string? startTime = null;
+                    if ((fields & ProcessFields.StartTime) != 0 && p.CreateTime != 0)
+                    {
+                        startTime = DateTime.FromFileTimeUtc(p.CreateTime).ToString("o");
+                    }
 
-                NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
-                {
-                    Pid = pid,
-                    Ppid = ppid,
-                    Name = name ?? string.Empty,
-                    StartTime = startTime,
-                    Uid = uid,
-                    User = user,
-                });
+                    var wantsUser = (fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0;
+                    var uid = -1;
+                    string? user = null;
+                    if (wantsUser)
+                    {
+                        TryGetProcessOwner(pid, out uid, out user);
+                    }
+
+                    NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
+                    {
+                        Pid = pid,
+                        Ppid = ppid,
+                        Name = name ?? string.Empty,
+                        StartTime = startTime,
+                        Uid = uid,
+                        User = user,
+                        Memory = -1,
+                        Cpu = -1,
+                    });
+                }
+            }
+            catch
+            {
+                // Skip malformed entries instead of aborting the enumeration.
             }
 
-            if (p.NextEntryOffset == 0)
+            if (nextOffset == 0)
             {
                 break;
             }
 
-            offset += (int)p.NextEntryOffset;
+            offset += (int)nextOffset;
         }
     }
 
@@ -1387,47 +1398,56 @@ internal static class MacReader
         var count = used / 4;
         for (var i = 0; i < count; i++)
         {
-            var pid = Marshal.ReadInt32(pids, i * 4);
-            if (pid <= 0)
+            try
             {
-                continue;
+                var pid = Marshal.ReadInt32(pids, i * 4);
+                if (pid <= 0)
+                {
+                    continue;
+                }
+
+                var len = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, info, ProcBsdInfoSize);
+                if (len != ProcBsdInfoSize)
+                {
+                    continue;
+                }
+
+                var ppid = (uint)Marshal.ReadInt32(info, 16);
+                var uid = (uint)Marshal.ReadInt32(info, 20);
+                var startSec = (ulong)Marshal.ReadInt64(info, 120);
+                var startUsec = (ulong)Marshal.ReadInt64(info, 128);
+                var (name, path) = GetNameAndPath(fields, pid, pathBuf);
+
+                string? startTime = null;
+                if ((fields & ProcessFields.StartTime) != 0 && startSec > 0)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeSeconds((long)startSec).AddTicks((long)startUsec * 10);
+                    startTime = dt.ToString("o");
+                }
+
+                string? user = null;
+                if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0)
+                {
+                    user = GetUserName(uid);
+                }
+
+                NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
+                {
+                    Pid = pid,
+                    Ppid = (int)ppid,
+                    Name = name ?? string.Empty,
+                    Path = path,
+                    StartTime = startTime,
+                    Uid = (int)uid,
+                    User = user,
+                    Memory = -1,
+                    Cpu = -1,
+                });
             }
-
-            var len = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, info, ProcBsdInfoSize);
-            if (len != ProcBsdInfoSize)
+            catch
             {
-                continue;
+                // Skip malformed entries instead of aborting the enumeration.
             }
-
-            var ppid = (uint)Marshal.ReadInt32(info, 16);
-            var uid = (uint)Marshal.ReadInt32(info, 20);
-            var startSec = (ulong)Marshal.ReadInt64(info, 120);
-            var startUsec = (ulong)Marshal.ReadInt64(info, 128);
-            var (name, path) = GetNameAndPath(fields, pid, pathBuf);
-
-            string? startTime = null;
-            if (((fields & ProcessFields.StartTime) != 0 || fields == 0) && startSec > 0)
-            {
-                var dt = DateTimeOffset.FromUnixTimeSeconds((long)startSec).AddTicks((long)startUsec * 10);
-                startTime = dt.ToString("o");
-            }
-
-            string? user = null;
-            if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0 || fields == 0)
-            {
-                user = GetUserName(uid);
-            }
-
-            NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
-            {
-                Pid = pid,
-                Ppid = (int)ppid,
-                Name = name ?? string.Empty,
-                Path = path,
-                StartTime = startTime,
-                Uid = (int)uid,
-                User = user,
-            });
         }
     }
 
