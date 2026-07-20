@@ -256,21 +256,8 @@ internal static class NativeHelpers
         return newBuffer;
     }
 
-    public static void WriteProcessInfo(TextWriter writer, ProcessField fields, int pid, int ppid, string? name = null, string? path = null, string? cmd = null, string? startTime = null, int uid = -1, string? user = null, double memory = -1, double cpu = -1)
+    public static void WriteProcessInfo(TextWriter writer, ProcessField fields, ProcessInfo info)
     {
-        var info = new ProcessInfo
-        {
-            Pid = pid,
-            Ppid = ppid,
-            Uid = uid,
-            User = user,
-            Name = name ?? string.Empty,
-            Cmd = cmd,
-            Path = path,
-            StartTime = startTime,
-            Memory = memory,
-            Cpu = cpu,
-        };
         JsonWriter.Write(writer, info, fields);
     }
 }
@@ -384,7 +371,15 @@ internal static class WindowsReader
                     if (wantsUser)
                         TryGetProcessOwner(pid, out uid, out user);
 
-                    NativeHelpers.WriteProcessInfo(writer, fields, pid, ppid, name, null, null, startTime, uid, user);
+                    NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
+                    {
+                        Pid = pid,
+                        Ppid = ppid,
+                        Name = name ?? string.Empty,
+                        StartTime = startTime,
+                        Uid = uid,
+                        User = user,
+                    });
                 }
 
                 if (p->NextEntryOffset == 0) break;
@@ -910,7 +905,16 @@ internal static class MacReader
                     if ((fields & ProcessField.User) != 0 || (fields & ProcessField.Uid) != 0 || fields == 0)
                         user = GetUserName(pbi.pbi_uid);
 
-                    NativeHelpers.WriteProcessInfo(writer, fields, pid, ppid, name, path, null, startTime, uid, user);
+                    NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
+                    {
+                        Pid = pid,
+                        Ppid = ppid,
+                        Name = name ?? string.Empty,
+                        Path = path,
+                        StartTime = startTime,
+                        Uid = uid,
+                        User = user,
+                    });
                 }
             }
             finally
