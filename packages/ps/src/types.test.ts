@@ -36,10 +36,7 @@ test("toBackendFields expands user to uid", () => {
 });
 
 test("toBackendFields deduplicates overlapping backend fields", () => {
-  assert.deepStrictEqual(toBackendFields(["command", "cmd"]), [
-    "cmd",
-    "name",
-  ]);
+  assert.deepStrictEqual(toBackendFields(["command", "cmd"]), ["cmd", "name"]);
 });
 
 test("toBackendFields deduplicates repeated aliases", () => {
@@ -159,6 +156,17 @@ test("normalizeProcessInfo returns null user when uid is absent", () => {
   const info = normalizeProcessInfo({ pid: 1, ppid: 0, name: "init" });
   assert.strictEqual(info.uid, null);
   assert.strictEqual(info.user, null);
+});
+
+test("normalizeProcessInfo prefers an explicit user string over a derived uid", () => {
+  const info = normalizeProcessInfo({
+    pid: 1,
+    ppid: 0,
+    name: "init",
+    uid: 1000,
+    user: "alice",
+  });
+  assert.strictEqual(info.user, "alice");
 });
 
 test("normalizeProcessInfo without requestedFields returns the full shape", () => {

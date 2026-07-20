@@ -140,13 +140,13 @@ Resolves the absolute path to the native binary / assembly for a backend, or
 interface ProcessInfo {
   pid: number; // process ID
   ppid: number; // parent process ID
-  uid?: number; // user ID (Linux)
-  user?: string; // username or uid string, best effort
+  uid?: number; // user ID (Linux, macOS; best-effort RID on Windows)
+  user?: string; // username or uid string (Linux, macOS, Windows best effort)
   name: string; // executable name
   cmd?: string; // full command line (Linux)
   command?: string; // alias for cmd ?? name
   path?: string; // executable path (Linux, macOS)
-  startTime?: Date; // process start time (Linux)
+  startTime?: Date; // process start time (Linux, macOS, Windows)
   startedAt?: number; // process start time as Unix epoch ms
   cpu?: number; // CPU usage as a percent of one CPU (Linux)
   memory?: number; // resident memory as a percent of total RAM (Linux)
@@ -154,16 +154,18 @@ interface ProcessInfo {
 ```
 
 `ProcessInfo` is intentionally aligned with `ps-list` so migration is a drop-in
-replacement for the Linux/Unix case. On Windows the shape matches `ps-list` on
-Windows (`pid`, `ppid`, `name`) plus optional extras where available.
+replacement for the Linux/Unix case. On Windows and macOS the shape starts with
+`ps-list`'s base fields (`pid`, `ppid`, `name`) and adds `uid`, `user`, and
+`startTime` where available.
 
 ## Backends
 
-| backend         | location in `@sysutils/ps` | type                                         | default |
-| --------------- | -------------------------- | -------------------------------------------- | ------- |
-| .NET CLI        | `bin/<platform>/<arch>/ps` | Native AOT executable (spawn)                | yes     |
-| .NET in-process | `bin/nodeapi/<rid>/`       | Managed assembly loaded by `node-api-dotnet` | no      |
-| `/proc` (Linux) | `src/proc.ts`              | Pure-JS `/proc` walker                       | no      |
+| backend         | location in `@sysutils/ps` | type                                         | default                                 |
+| --------------- | -------------------------- | -------------------------------------------- | --------------------------------------- |
+| `auto`          | `src/index.ts`             | Chooses the fastest backend for the platform | yes                                     |
+| .NET CLI        | `bin/<platform>/<arch>/ps` | Native AOT executable (spawn)                | fallback on Linux; yes on Windows/macOS |
+| .NET in-process | `bin/nodeapi/<rid>/`       | Managed assembly loaded by `node-api-dotnet` | no                                      |
+| `/proc` (Linux) | `src/proc.ts`              | Pure-JS `/proc` walker                       | default on Linux (`auto`)               |
 
 ### .NET CLI (default)
 
@@ -186,12 +188,14 @@ and platform are unaffected, or when you are willing to accept that risk:
 const procs = await listProcesses({ backend: "dotnet-nodeapi" });
 ```
 
-### `/proc` (Linux, fallback)
+### `/proc` (Linux, default for `auto`)
 
 On Linux, the package can read `/proc/<pid>/stat`, `comm`, `status`, and
-`cmdline` directly in JavaScript. This is used as a fallback when the native
-binaries are not built or installed, and it also avoids the `node-api-dotnet`
-runtime entirely, so it works under Bun without optional dependencies.
+`cmdline` directly in JavaScript. The `auto` backend selects `/proc` first on
+Linux to avoid spawning a native binary. It is also used as a fallback when
+the native binaries are not built or installed, and it avoids the
+`node-api-dotnet` runtime entirely, so it works under Bun without optional
+dependencies.
 
 ```ts
 const procs = await listProcesses({ backend: "proc" });
@@ -199,18 +203,20 @@ const procs = await listProcesses({ backend: "proc" });
 
 ## Comparison
 
-| Feature                                                            | `@sysutils/ps` (CLI) | `@sysutils/ps` (nodeapi) | `ps-list`              |
-| ------------------------------------------------------------------ | -------------------- | ------------------------ | ---------------------- |
-| Cross-platform (Windows/Linux/macOS)                               | yes                  | yes                      | yes                    |
-| Windows ARM64                                                      | yes                  | yes                      | no                     |
-| No external `ps`/`tasklist` dependency                             | yes                  | yes                      | no (uses `ps` on Unix) |
-| Stream-first API                                                   | yes                  | yes                      | no                     |
-| Select fields per call                                             | yes                  | yes                      | no                     |
-| Full `ps-list` field set on Linux                                  | yes                  | yes                      | yes                    |
-| `uid` / `cmd` / `path` / `startTime` / `cpu` / `memory` on Linux   | yes                  | yes                      | yes                    |
-| `uid` / `cmd` / `path` / `startTime` / `cpu` / `memory` on Windows | no                   | no                       | no                     |
-| In-process / no spawn                                              | no                   | yes                      | no                     |
-| Runtime dependency                                                 | none (AOT binary)    | .NET 8 runtime           | `ps` binary on Unix    |
+| Feature                                             | `@sysutils/ps` (CLI) | `@sysutils/ps` (nodeapi) | `ps-list`              |
+| --------------------------------------------------- | -------------------- | ------------------------ | ---------------------- |
+| Cross-platform (Windows/Linux/macOS)                | yes                  | yes                      | yes                    |
+| Windows ARM64                                       | yes                  | yes                      | no                     |
+| No external `ps`/`tasklist` dependency              | yes                  | yes                      | no (uses `ps` on Unix) |
+| Stream-first API                                    | yes                  | yes                      | no                     |
+| Select fields per call                              | yes                  | yes                      | no                     |
+| Full `ps-list` field set on Linux                   | yes                  | yes                      | yes                    |
+| `uid` / `user` / `startTime` on Linux/macOS/Windows | yes                  | yes                      | Linux only             |
+| `cmd` / `cpu` / `memory` on Linux                   | yes                  | yes                      | yes                    |
+| `cmd` / `cpu` / `memory` on Windows/macOS           | no                   | no                       | no                     |
+| `path` on Linux/macOS                               | yes                  | yes                      | no                     |
+| In-process / no spawn                               | no                   | yes                      | no                     |
+| Runtime dependency                                  | none (AOT binary)    | .NET 8 runtime           | `ps` binary on Unix    |
 
 ## Benchmarks
 

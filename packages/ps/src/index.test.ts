@@ -41,6 +41,24 @@ test("createProcessStream works when a backend binary is available", async (t) =
   );
 });
 
+test("dotnet backend exposes startTime, uid, and user when fields are requested", async (t) => {
+  if (!getBinaryPath("dotnet")) {
+    t.skip("dotnet CLI binary not built");
+    return;
+  }
+
+  const procs = await listProcesses({
+    backend: "dotnet",
+    fields: ["pid", "startTime", "uid", "user"],
+  });
+  assert.ok(procs.length > 0);
+  const first = procs[0];
+  assert.strictEqual(typeof first.pid, "number");
+  assert.ok(first.startTime instanceof Date || first.startTime === null);
+  assert.ok(typeof first.uid === "number" || first.uid === null);
+  assert.ok(typeof first.user === "string" || first.user === null);
+});
+
 test(
   "proc backend lists processes on Linux",
   { skip: process.platform !== "linux" },
@@ -74,6 +92,23 @@ test(
     assert.strictEqual(typeof first.pid, "number");
     assert.strictEqual(typeof first.command, "string");
     assert.ok(typeof first.startedAt === "number" || first.startedAt === null);
+    assert.ok(typeof first.user === "string" || first.user === null);
+  },
+);
+
+test(
+  "proc backend exposes startTime, uid, and user",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const procs = await listProcesses({
+      backend: "proc",
+      fields: ["pid", "startTime", "uid", "user"],
+    });
+    assert.ok(procs.length > 0);
+    const first = procs[0];
+    assert.strictEqual(typeof first.pid, "number");
+    assert.ok(first.startTime instanceof Date || first.startTime === null);
+    assert.ok(typeof first.uid === "number" || first.uid === null);
     assert.ok(typeof first.user === "string" || first.user === null);
   },
 );
@@ -169,8 +204,22 @@ test(
 );
 
 test(
-  "auto backend prefers dotnet (spawned child) over /proc when both are available",
-  { skip: !getBinaryPath("dotnet") },
+  "auto backend prefers /proc over dotnet on Linux when both are available",
+  { skip: process.platform !== "linux" || !getBinaryPath("dotnet") },
+  () => {
+    const stream = createProcessStream({ fields: ["pid", "name"] });
+    assert.strictEqual(
+      stream.process,
+      undefined,
+      "expected the /proc backend to be used",
+    );
+    stream.destroy();
+  },
+);
+
+test(
+  "auto backend prefers dotnet over /proc on non-Linux when dotnet is available",
+  { skip: process.platform === "linux" || !getBinaryPath("dotnet") },
   () => {
     const stream = createProcessStream({ fields: ["pid", "name"] });
     assert.ok(
@@ -181,24 +230,21 @@ test(
   },
 );
 
-test(
-  "createProcessStream throws when the proc backend is explicitly requested but unavailable",
-  () => {
-    const original = Object.getOwnPropertyDescriptor(process, "platform")!;
-    Object.defineProperty(process, "platform", {
-      value: "win32",
-      configurable: true,
-    });
-    try {
-      assert.throws(
-        () => createProcessStream({ backend: "proc" }),
-        /proc backend is only available on Linux/,
-      );
-    } finally {
-      Object.defineProperty(process, "platform", original);
-    }
-  },
-);
+test("createProcessStream throws when the proc backend is explicitly requested but unavailable", () => {
+  const original = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", {
+    value: "win32",
+    configurable: true,
+  });
+  try {
+    assert.throws(
+      () => createProcessStream({ backend: "proc" }),
+      /proc backend is only available on Linux/,
+    );
+  } finally {
+    Object.defineProperty(process, "platform", original);
+  }
+});
 
 test("createProcessStream throws for an explicit backend without a binary", (t) => {
   if (getBinaryPath("dotnet")) {
