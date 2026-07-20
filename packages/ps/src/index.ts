@@ -171,7 +171,7 @@ function resolveBackend(options?: PsOptions): SupportedBackend {
     requested !== "proc"
   ) {
     throw new Error(
-      "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
+      `Invalid \`@sysutils/ps\` backend: "${requested}". Expected "auto", "dotnet", "dotnet-nodeapi", or "proc".`,
     );
   }
   return resolveExplicitBackend(requested);

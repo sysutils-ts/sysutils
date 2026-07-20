@@ -285,7 +285,6 @@ function buildWants(requestedFields?: string[]): Record<string, boolean> {
   for (const f of backendFields ?? ALL_BACKEND_FIELDS) {
     wants[f] = true;
   }
-  if (wants.cmd) wants.name = true;
   return wants;
 }
 

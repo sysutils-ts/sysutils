@@ -139,6 +139,6 @@ test("createProcessStream throws for an explicit backend without a binary", (t) 
 test("createProcessStream throws for an unknown backend", () => {
   assert.throws(
     () => createProcessStream({ backend: "rust" as "dotnet" }),
-    /No @sysutils\/ps native backend found/,
+    /Invalid `@sysutils\/ps` backend: "rust"/,
   );
 });
