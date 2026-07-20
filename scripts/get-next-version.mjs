@@ -18,7 +18,7 @@ function setOutput(lines) {
   }
 }
 
-if (result && result.nextRelease) {
+if (result?.nextRelease) {
   setOutput(`version=${result.nextRelease.version}\nreleased=true\n`);
 } else {
   setOutput("released=false\n");

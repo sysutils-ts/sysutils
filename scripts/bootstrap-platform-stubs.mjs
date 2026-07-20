@@ -21,12 +21,10 @@ const rootPkg = {
   private: true,
   description:
     "Temporary workspace root for bootstrapping @sysutils/ps-* platform packages.",
-  workspaces: platforms.map(
-    ([platform, arch]) =>
-      `./${`@sysutils/ps-${platform}-${arch}`
-        .replace("@", "")
-        .replace("/", "-")}`,
-  ),
+  workspaces: platforms.map(([platform, arch]) => {
+    const name = `@sysutils/ps-${platform}-${arch}`;
+    return `./${name.replace("@", "").replace("/", "-")}`;
+  }),
 };
 
 fs.writeFileSync(

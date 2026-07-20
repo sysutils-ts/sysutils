@@ -315,7 +315,7 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
 }
 
 function loadDotnetNodeapi(binaryPath: string): void {
-  if (cachedDotnetAddon && cachedDotnetAddon.path === binaryPath) return;
+  if (cachedDotnetAddon?.path === binaryPath) return;
   const dotnet = require("node-api-dotnet/net8.0") as {
     require: (path: string) => {
       PsModule: { listProcesses: (fields: string) => string };
@@ -335,11 +335,7 @@ function getNodeapiJson(
 }
 
 async function collectStream(stream: ProcessStream): Promise<ProcessInfo[]> {
-  const result: ProcessInfo[] = [];
-  for await (const proc of stream) {
-    result.push(proc as ProcessInfo);
-  }
-  return result;
+  return (await stream.toArray()) as ProcessInfo[];
 }
 
 export async function listProcesses(

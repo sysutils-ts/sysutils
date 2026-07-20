@@ -66,16 +66,12 @@ function getGetconfValue(name: string): number | undefined {
 }
 
 function getClockTicks(): number {
-  if (clockTicksCache === undefined) {
-    clockTicksCache = getGetconfValue("CLK_TCK") ?? 100;
-  }
+  clockTicksCache ??= getGetconfValue("CLK_TCK") ?? 100;
   return clockTicksCache;
 }
 
 function getPageSize(): number {
-  if (pageSizeCache === undefined) {
-    pageSizeCache = getGetconfValue("PAGESIZE") ?? 4096;
-  }
+  pageSizeCache ??= getGetconfValue("PAGESIZE") ?? 4096;
   return pageSizeCache;
 }
 
@@ -168,7 +164,7 @@ function parseStat(data: Buffer): ProcStat | undefined {
 }
 
 function decodeCmdline(data: Buffer): string | null {
-  const s = data.toString("utf8").split("\0").join(" ").trim();
+  const s = data.toString("utf8").replaceAll("\0", " ").trim();
   return s.length ? s : null;
 }
 

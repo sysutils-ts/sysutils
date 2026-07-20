@@ -1,12 +1,14 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace SysUtils.Ps;
 
 [Flags]
-internal enum ProcessField
+internal enum ProcessFields
 {
     Pid = 1,
     Ppid = 2,
@@ -35,30 +37,36 @@ internal struct ProcessInfo
 
 internal readonly struct Options
 {
-    public ProcessField Fields { get; }
-    public Options(ProcessField fields) => Fields = fields;
+    public ProcessFields Fields { get; }
+    public Options(ProcessFields fields) => Fields = fields;
 
     public static Options Parse(string[] args)
     {
-        ProcessField fields = 0;
-        for (var i = 0; i < args.Length; i++)
+        ProcessFields fields = 0;
+        var i = 0;
+        while (i < args.Length)
         {
             if (args[i] == "--fields")
             {
                 if (i + 1 >= args.Length)
                     throw new ArgumentException("Missing value for --fields.");
-                fields |= ParseFields(args[++i]);
+                fields |= ParseFields(args[i + 1]);
+                i += 2;
+            }
+            else
+            {
+                i++;
             }
         }
-        return new Options(fields == 0 ? ProcessField.All : fields);
+        return new Options(fields == 0 ? ProcessFields.All : fields);
     }
 
-    private static ProcessField ParseFields(string value)
+    private static ProcessFields ParseFields(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             throw new ArgumentException("Fields argument is empty.");
 
-        ProcessField result = 0;
+        ProcessFields result = 0;
         var span = value.AsSpan();
         while (!span.IsEmpty)
         {
@@ -70,15 +78,15 @@ internal readonly struct Options
 
             result |= token.ToLowerInvariant() switch
             {
-                "pid" => ProcessField.Pid,
-                "ppid" => ProcessField.Ppid,
-                "name" => ProcessField.Name,
-                "cmd" or "command" => ProcessField.Command,
-                "memory" => ProcessField.Memory,
-                "cpu" => ProcessField.Cpu,
-                "uid" => ProcessField.Uid,
-                "path" => ProcessField.Path,
-                "starttime" or "start" or "startTime" => ProcessField.StartTime,
+                "pid" => ProcessFields.Pid,
+                "ppid" => ProcessFields.Ppid,
+                "name" => ProcessFields.Name,
+                "cmd" or "command" => ProcessFields.Command,
+                "memory" => ProcessFields.Memory,
+                "cpu" => ProcessFields.Cpu,
+                "uid" => ProcessFields.Uid,
+                "path" => ProcessFields.Path,
+                "starttime" or "start" or "startTime" => ProcessFields.StartTime,
                 _ => throw new ArgumentException($"Unknown field: {token}")
             };
 
@@ -114,7 +122,7 @@ public static class Program
 
 internal static class ProcessWriter
 {
-    public static void Write(TextWriter writer, ProcessField fields)
+    public static void Write(TextWriter writer, ProcessFields fields)
     {
         if (OperatingSystem.IsWindows())
             WindowsReader.Write(writer, fields);
@@ -129,68 +137,86 @@ internal static class ProcessWriter
 
 internal static class JsonWriter
 {
-    public static void Write(TextWriter w, in ProcessInfo p, ProcessField fields)
+    public static void Write(TextWriter w, in ProcessInfo p, ProcessFields fields)
     {
-        if (fields == 0) fields = ProcessField.All;
+        if (fields == 0) fields = ProcessFields.All;
         w.Write('{');
         var first = true;
 
-        if ((fields & ProcessField.Pid) != 0)
-        {
-            WriteKey(w, "pid", ref first);
-            w.Write(p.Pid);
-        }
-        if ((fields & ProcessField.Ppid) != 0)
-        {
-            WriteKey(w, "ppid", ref first);
-            w.Write(p.Ppid);
-        }
-        if ((fields & ProcessField.Uid) != 0)
-        {
-            WriteKey(w, "uid", ref first);
-            if (p.Uid >= 0) w.Write(p.Uid); else w.Write("null");
-        }
-        if ((fields & ProcessField.Name) != 0)
-        {
-            WriteKey(w, "name", ref first);
-            WriteString(w, p.Name);
-        }
-        if ((fields & ProcessField.Command) != 0)
-        {
-            WriteKey(w, "cmd", ref first);
-            WriteString(w, p.Cmd);
-        }
-        if ((fields & ProcessField.Path) != 0)
-        {
-            WriteKey(w, "path", ref first);
-            WriteString(w, p.Path);
-        }
-        if ((fields & ProcessField.StartTime) != 0)
-        {
-            WriteKey(w, "startTime", ref first);
-            WriteString(w, p.StartTime);
-        }
-        if ((fields & ProcessField.Memory) != 0)
-        {
-            WriteKey(w, "memory", ref first);
-            if (p.Memory >= 0) w.Write(p.Memory.ToString(System.Globalization.CultureInfo.InvariantCulture)); else w.Write("null");
-        }
-        if ((fields & ProcessField.Cpu) != 0)
-        {
-            WriteKey(w, "cpu", ref first);
-            if (p.Cpu >= 0) w.Write(p.Cpu.ToString(System.Globalization.CultureInfo.InvariantCulture)); else w.Write("null");
-        }
+        if ((fields & ProcessFields.Pid) != 0) WritePid(w, ref first, p);
+        if ((fields & ProcessFields.Ppid) != 0) WritePpid(w, ref first, p);
+        if ((fields & ProcessFields.Uid) != 0) WriteUid(w, ref first, p);
+        if ((fields & ProcessFields.Name) != 0) WriteName(w, ref first, p);
+        if ((fields & ProcessFields.Command) != 0) WriteCommand(w, ref first, p);
+        if ((fields & ProcessFields.Path) != 0) WritePath(w, ref first, p);
+        if ((fields & ProcessFields.StartTime) != 0) WriteStartTime(w, ref first, p);
+        if ((fields & ProcessFields.Memory) != 0) WriteMemory(w, ref first, p);
+        if ((fields & ProcessFields.Cpu) != 0) WriteCpu(w, ref first, p);
 
         w.WriteLine('}');
     }
 
-    private static void WriteKey(TextWriter w, string name, ref bool first)
+    private static void WriteField(TextWriter w, string key, ref bool first)
     {
         if (!first) w.Write(',');
         w.Write('"');
-        w.Write(name);
+        w.Write(key);
         w.Write("\":");
         first = false;
+    }
+
+    private static void WritePid(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "pid", ref first);
+        w.Write(p.Pid);
+    }
+
+    private static void WritePpid(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "ppid", ref first);
+        w.Write(p.Ppid);
+    }
+
+    private static void WriteUid(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "uid", ref first);
+        if (p.Uid >= 0) w.Write(p.Uid); else w.Write("null");
+    }
+
+    private static void WriteName(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "name", ref first);
+        WriteString(w, p.Name);
+    }
+
+    private static void WriteCommand(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "cmd", ref first);
+        WriteString(w, p.Cmd);
+    }
+
+    private static void WritePath(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "path", ref first);
+        WriteString(w, p.Path);
+    }
+
+    private static void WriteStartTime(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "startTime", ref first);
+        WriteString(w, p.StartTime);
+    }
+
+    private static void WriteMemory(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "memory", ref first);
+        if (p.Memory >= 0) w.Write(p.Memory.ToString(System.Globalization.CultureInfo.InvariantCulture)); else w.Write("null");
+    }
+
+    private static void WriteCpu(TextWriter w, ref bool first, in ProcessInfo p)
+    {
+        WriteField(w, "cpu", ref first);
+        if (p.Cpu >= 0) w.Write(p.Cpu.ToString(System.Globalization.CultureInfo.InvariantCulture)); else w.Write("null");
     }
 
     private static void WriteString(TextWriter w, string? value)
@@ -201,37 +227,56 @@ internal static class JsonWriter
             return;
         }
         w.Write('"');
-        for (var i = 0; i < value.Length; i++)
+        var i = 0;
+        while (i < value.Length)
         {
-            var c = value[i];
-            if (char.IsHighSurrogate(c) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
-            {
-                var codePoint = char.ConvertToUtf32(c, value[i + 1]);
-                if (codePoint < 0x20)
-                    w.Write($"\\u{codePoint:x4}");
-                else if (codePoint < 0x10000)
-                    w.Write((char)codePoint);
-                else
-                {
-                    // surrogate pair written as two \u escapes is safe for all decoders
-                    w.Write($"\\u{(0xD800 + ((codePoint - 0x10000) >> 10)):x4}");
-                    w.Write($"\\u{(0xDC00 + ((codePoint - 0x10000) & 0x3FF)):x4}");
-                }
-                i++;
-                continue;
-            }
-
-            if (c == '"') w.Write("\\\"");
-            else if (c == '\\') w.Write("\\\\");
-            else if (c == '\b') w.Write("\\b");
-            else if (c == '\f') w.Write("\\f");
-            else if (c == '\n') w.Write("\\n");
-            else if (c == '\r') w.Write("\\r");
-            else if (c == '\t') w.Write("\\t");
-            else if (c < 0x20) w.Write($"\\u{(int)c:x4}");
-            else w.Write(c);
+            i = WriteEscapedChar(w, value, i);
         }
         w.Write('"');
+    }
+
+    private static int WriteEscapedChar(TextWriter w, string value, int i)
+    {
+        var c = value[i];
+        if (char.IsHighSurrogate(c) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+        {
+            WriteSurrogatePair(w, c, value[i + 1]);
+            return i + 2;
+        }
+        WriteSimpleEscape(w, c);
+        return i + 1;
+    }
+
+    private static void WriteSurrogatePair(TextWriter w, char high, char low)
+    {
+        var codePoint = char.ConvertToUtf32(high, low);
+        if (codePoint < 0x20)
+        {
+            w.Write($"\\u{codePoint:x4}");
+        }
+        else if (codePoint < 0x10000)
+        {
+            w.Write((char)codePoint);
+        }
+        else
+        {
+            // surrogate pair written as two \u escapes is safe for all decoders
+            w.Write($"\\u{(0xD800 + ((codePoint - 0x10000) >> 10)):x4}");
+            w.Write($"\\u{(0xDC00 + ((codePoint - 0x10000) & 0x3FF)):x4}");
+        }
+    }
+
+    private static void WriteSimpleEscape(TextWriter w, char c)
+    {
+        if (c == '"') w.Write("\\\"");
+        else if (c == '\\') w.Write("\\\\");
+        else if (c == '\b') w.Write("\\b");
+        else if (c == '\f') w.Write("\\f");
+        else if (c == '\n') w.Write("\\n");
+        else if (c == '\r') w.Write("\\r");
+        else if (c == '\t') w.Write("\\t");
+        else if (c < 0x20) w.Write($"\\u{(int)c:x4}");
+        else w.Write(c);
     }
 }
 
@@ -240,7 +285,7 @@ internal static class NativeHelpers
     public static IntPtr GrowBuffer(IntPtr buffer, ref int size, int maxSize, string context)
     {
         if (size >= maxSize)
-            throw new OutOfMemoryException($"{context} buffer exceeded maximum size.");
+            throw new InvalidOperationException($"{context} buffer exceeded maximum size.");
         var newSize = size > maxSize / 2 ? maxSize : size * 2;
         var newBuffer = Marshal.AllocHGlobal(newSize);
         Marshal.FreeHGlobal(buffer);
@@ -248,7 +293,7 @@ internal static class NativeHelpers
         return newBuffer;
     }
 
-    public static void WriteProcessInfo(TextWriter writer, ProcessField fields, int pid, int ppid, string? name = null, string? path = null)
+    public static void WriteProcessInfo(TextWriter writer, ProcessFields fields, int pid, int ppid, string? name = null, string? path = null)
     {
         var info = new ProcessInfo
         {
@@ -305,7 +350,7 @@ internal static class WindowsReader
         public IntPtr InheritedFromUniqueProcessId;
     }
 
-    public static unsafe void Write(TextWriter writer, ProcessField fields)
+    public static void Write(TextWriter writer, ProcessFields fields)
     {
         var size = 512 * 1024;
         var buffer = Marshal.AllocHGlobal(size);
@@ -313,31 +358,38 @@ internal static class WindowsReader
         {
             while (true)
             {
-                var status = NtQuerySystemInformation(SystemProcessInformationClass, buffer, size, out _);
-                if (status >= 0) break;
+                var status = NtQuerySystemInformation(SystemProcessInformationClass, buffer, size, out var returnLength);
+                if (status >= 0)
+                {
+                    var managedBuffer = new byte[returnLength];
+                    Marshal.Copy(buffer, managedBuffer, 0, returnLength);
+                    var span = managedBuffer.AsSpan();
+                    var offset = 0;
+                    var entrySize = Unsafe.SizeOf<SystemProcessInformation>();
+                    while (offset + entrySize <= returnLength)
+                    {
+                        var p = MemoryMarshal.AsRef<SystemProcessInformation>(span.Slice(offset));
+                        var pid = p.UniqueProcessId.ToInt32();
+                        var ppid = p.InheritedFromUniqueProcessId.ToInt32();
+
+                        string? name = null;
+                        if (p.ImageName.Buffer != IntPtr.Zero && p.ImageName.Length > 0)
+                            name = Marshal.PtrToStringUni(p.ImageName.Buffer, p.ImageName.Length / 2);
+
+                        if (pid != 0)
+                            NativeHelpers.WriteProcessInfo(writer, fields, pid, ppid, name);
+
+                        if (p.NextEntryOffset == 0) break;
+                        offset += (int)p.NextEntryOffset;
+                    }
+                    break;
+                }
                 if (status == STATUS_INFO_LENGTH_MISMATCH)
                 {
                     buffer = NativeHelpers.GrowBuffer(buffer, ref size, MaxBufferSize, "Process information");
                     continue;
                 }
                 throw new InvalidOperationException($"NtQuerySystemInformation failed: 0x{status & 0xFFFFFFFF:X8}");
-            }
-
-            var p = (SystemProcessInformation*)buffer.ToPointer();
-            while (true)
-            {
-                var pid = p->UniqueProcessId.ToInt32();
-                var ppid = p->InheritedFromUniqueProcessId.ToInt32();
-
-                string? name = null;
-                if (p->ImageName.Buffer != IntPtr.Zero && p->ImageName.Length > 0)
-                    name = Marshal.PtrToStringUni(p->ImageName.Buffer, p->ImageName.Length / 2);
-
-                if (pid != 0)
-                    NativeHelpers.WriteProcessInfo(writer, fields, pid, ppid, name);
-
-                if (p->NextEntryOffset == 0) break;
-                p = (SystemProcessInformation*)((byte*)p + p->NextEntryOffset);
             }
         }
         finally
@@ -358,19 +410,23 @@ internal static class LinuxReader
     [DllImport("libc", SetLastError = true)]
     private static extern long readlink(string pathname, byte[] buf, long bufsize);
 
-    public static void Write(TextWriter writer, ProcessField fields)
+    private readonly record struct LinuxContext(double PageSize, double Ticks, double Uptime, long BootTime, double TotalMem);
+    private readonly record struct ProcData(string? Comm, string? Path, string? Cmd, int Uid, StatInfo Stat, bool StatOk);
+
+    public static void Write(TextWriter writer, ProcessFields fields)
     {
         var pageSize = (double)Environment.SystemPageSize;
         var ticks = (double)GetClockTicks();
         var uptime = ParseUptime(File.ReadAllBytes("/proc/uptime"));
         var bootTime = ParseBtime(File.ReadAllBytes("/proc/stat"));
         var totalMem = ParseMemTotal(File.ReadAllBytes("/proc/meminfo"));
+        var ctx = new LinuxContext(pageSize, ticks, uptime, bootTime, totalMem);
 
         foreach (var dir in Directory.EnumerateDirectories("/proc"))
         {
             var name = Path.GetFileName(dir);
             if (!int.TryParse(name, out var pid)) continue;
-            try { WriteOne(writer, pid, dir, pageSize, ticks, uptime, bootTime, totalMem, fields); }
+            try { WriteOne(writer, pid, dir, ctx, fields); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* skip processes that disappear or are inaccessible */ }
         }
     }
@@ -382,7 +438,10 @@ internal static class LinuxReader
             var t = sysconf(_SC_CLK_TCK);
             if (t > 0) return t;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"sysconf failed: {ex}");
+        }
         return 100;
     }
 
@@ -421,16 +480,31 @@ internal static class LinuxReader
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
-    private static void WriteOne(TextWriter writer, int pid, string dir, double pageSize, double ticks, double uptime, long bootTime, double totalMem, ProcessField fields)
+    private static void WriteOne(TextWriter writer, int pid, string dir, in LinuxContext ctx, ProcessFields fields)
     {
-        var wantsName = (fields & ProcessField.Name) != 0 || fields == 0;
-        var wantsCmd = (fields & ProcessField.Command) != 0 || fields == 0;
-        var wantsPath = (fields & ProcessField.Path) != 0 || fields == 0;
-        var wantsUid = (fields & ProcessField.Uid) != 0 || fields == 0;
-        var wantsPpid = (fields & ProcessField.Ppid) != 0 || fields == 0;
-        var wantsMemory = (fields & ProcessField.Memory) != 0 || fields == 0;
-        var wantsCpu = (fields & ProcessField.Cpu) != 0 || fields == 0;
-        var wantsStartTime = (fields & ProcessField.StartTime) != 0 || fields == 0;
+        var data = ReadProcessData(dir, fields);
+        var info = new ProcessInfo
+        {
+            Pid = pid,
+            Ppid = data.StatOk ? data.Stat.Ppid : 0,
+            Uid = data.Uid,
+            Name = BuildName(data.Path, data.Comm, fields),
+            Cmd = data.Cmd,
+            Path = data.Path,
+            StartTime = ComputeStartTime(data.StatOk, data.Stat, ctx, fields),
+            Memory = ComputeMemory(data.StatOk, data.Stat, ctx, fields),
+            Cpu = ComputeCpu(data.StatOk, data.Stat, ctx, fields),
+        };
+        JsonWriter.Write(writer, info, fields);
+    }
+
+    private static ProcData ReadProcessData(string dir, ProcessFields fields)
+    {
+        var wantsName = (fields & ProcessFields.Name) != 0 || fields == 0;
+        var wantsCmd = (fields & ProcessFields.Command) != 0 || fields == 0;
+        var wantsPath = (fields & ProcessFields.Path) != 0 || fields == 0;
+        var wantsUid = (fields & ProcessFields.Uid) != 0 || fields == 0;
+        var wantsStat = (fields & ProcessFields.Ppid) != 0 || (fields & ProcessFields.Memory) != 0 || (fields & ProcessFields.Cpu) != 0 || (fields & ProcessFields.StartTime) != 0 || fields == 0;
 
         string? comm = null;
         if (wantsName)
@@ -467,59 +541,47 @@ internal static class LinuxReader
 
         StatInfo stat = default;
         var statOk = false;
-        if (wantsPpid || wantsMemory || wantsCpu || wantsStartTime)
+        if (wantsStat)
         {
             var statBytes = ReadProcFile(dir, "stat");
             statOk = statBytes != null && TryParseStat(statBytes, out stat);
         }
 
-        string? name = null;
-        if (wantsName)
+        return new ProcData(comm, path, cmd, uid, stat, statOk);
+    }
+
+    private static string? BuildName(string? path, string? comm, ProcessFields fields)
+    {
+        if ((fields & ProcessFields.Name) == 0 && fields != 0) return null;
+        if (!string.IsNullOrEmpty(path))
         {
-            if (!string.IsNullOrEmpty(path))
-                name = Path.GetFileName(path);
-            if (string.IsNullOrEmpty(name))
-                name = comm;
-            if (string.IsNullOrEmpty(name))
-                name = string.Empty;
+            var name = Path.GetFileName(path);
+            if (!string.IsNullOrEmpty(name)) return name;
         }
+        return comm ?? string.Empty;
+    }
 
-        double memory = -1;
-        if (statOk && wantsMemory)
-            memory = stat.Rss * pageSize / totalMem * 100.0;
+    private static double ComputeMemory(bool statOk, StatInfo stat, in LinuxContext ctx, ProcessFields fields)
+    {
+        if (!statOk || ((fields & ProcessFields.Memory) == 0 && fields != 0)) return -1;
+        return stat.Rss * ctx.PageSize / ctx.TotalMem * 100.0;
+    }
 
-        double cpu = -1;
-        if (statOk && wantsCpu)
-        {
-            var processAge = uptime - stat.StartTime / ticks;
-            if (processAge > 0)
-            {
-                var totalTime = (stat.Utime + stat.Stime) / ticks;
-                cpu = totalTime / processAge * 100.0;
-            }
-        }
+    private static double ComputeCpu(bool statOk, StatInfo stat, in LinuxContext ctx, ProcessFields fields)
+    {
+        if (!statOk || ((fields & ProcessFields.Cpu) == 0 && fields != 0)) return -1;
+        var processAge = ctx.Uptime - stat.StartTime / ctx.Ticks;
+        if (processAge <= 0) return -1;
+        var totalTime = (stat.Utime + stat.Stime) / ctx.Ticks;
+        return totalTime / processAge * 100.0;
+    }
 
-        string? startTime = null;
-        if (statOk && wantsStartTime)
-        {
-            var epoch = bootTime + stat.StartTime / ticks;
-            if (epoch >= long.MinValue && epoch <= long.MaxValue)
-                startTime = DateTimeOffset.FromUnixTimeSeconds((long)epoch).ToString("o");
-        }
-
-        var info = new ProcessInfo
-        {
-            Pid = pid,
-            Ppid = statOk ? stat.Ppid : 0,
-            Uid = uid,
-            Name = name,
-            Cmd = cmd,
-            Path = path,
-            StartTime = startTime,
-            Memory = memory,
-            Cpu = cpu,
-        };
-        JsonWriter.Write(writer, info, fields);
+    private static string? ComputeStartTime(bool statOk, StatInfo stat, in LinuxContext ctx, ProcessFields fields)
+    {
+        if (!statOk || ((fields & ProcessFields.StartTime) == 0 && fields != 0)) return null;
+        var epoch = ctx.BootTime + stat.StartTime / ctx.Ticks;
+        if (epoch < long.MinValue || epoch > long.MaxValue) return null;
+        return DateTimeOffset.FromUnixTimeSeconds((long)epoch).ToString("o");
     }
 
     private static string? ReadExeLink(string pathname)
@@ -534,7 +596,10 @@ internal static class LinuxReader
                 return s;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"readlink failed for {pathname}: {ex}");
+        }
         return null;
     }
 
@@ -558,39 +623,48 @@ internal static class LinuxReader
         if (i < data.Length && data[i] == ')') i++;
         while (i < data.Length && data[i] == ' ') i++;
 
-        // skip state char (uppercase or lowercase)
-        if (i >= data.Length) return false;
-        i++;
-        while (i < data.Length && data[i] == ' ') i++;
-
-        // ppid
+        if (!SkipState(data, ref i)) return false;
         if (!TryParseInt(data, ref i, out info.Ppid)) return false;
 
         // skip pgrp, session, tty_nr, tpgid, flags, minflt, cminflt, majflt, cmajflt
-        for (var k = 0; k < 9; k++)
-            if (!TryParseLong(data, ref i, out _)) return false;
+        if (!SkipLongs(data, ref i, 9)) return false;
 
         if (!TryParseLong(data, ref i, out info.Utime)) return false;
         if (!TryParseLong(data, ref i, out info.Stime)) return false;
 
         // skip cutime, cstime, priority
-        for (var k = 0; k < 3; k++)
-            if (!TryParseLong(data, ref i, out _)) return false;
+        if (!SkipLongs(data, ref i, 3)) return false;
 
         // skip nice
-        if (!TryParseLong(data, ref i, out _)) return false;
+        if (!SkipLongs(data, ref i, 1)) return false;
 
         // skip num_threads, itrealvalue
-        for (var k = 0; k < 2; k++)
-            if (!TryParseLong(data, ref i, out _)) return false;
+        if (!SkipLongs(data, ref i, 2)) return false;
 
         if (!TryParseLong(data, ref i, out info.StartTime)) return false;
 
         // skip vsize
-        if (!TryParseLong(data, ref i, out _)) return false;
+        if (!SkipLongs(data, ref i, 1)) return false;
 
         if (!TryParseLong(data, ref i, out info.Rss)) return false;
 
+        return true;
+    }
+
+    private static bool SkipState(ReadOnlySpan<byte> data, ref int i)
+    {
+        if (i >= data.Length) return false;
+        i++;
+        while (i < data.Length && data[i] == ' ') i++;
+        return true;
+    }
+
+    private static bool SkipLongs(ReadOnlySpan<byte> data, ref int i, int count)
+    {
+        for (var k = 0; k < count; k++)
+        {
+            if (!TryParseLong(data, ref i, out _)) return false;
+        }
         return true;
     }
 
@@ -623,6 +697,7 @@ internal static class LinuxReader
             acc = acc * 10 + digit;
             i++;
         }
+
         if (i == start) return false;
         value = sign * acc;
         return true;
@@ -640,10 +715,12 @@ internal static class LinuxReader
 
         var start = i;
         long whole = 0;
+        var hasDigits = false;
         while (i < data.Length && data[i] >= '0' && data[i] <= '9')
         {
             whole = whole * 10 + (data[i] - '0');
             i++;
+            hasDigits = true;
         }
 
         double frac = 0;
@@ -656,10 +733,11 @@ internal static class LinuxReader
                 frac = frac * 10 + (data[i] - '0');
                 fracDiv *= 10;
                 i++;
+                hasDigits = true;
             }
         }
 
-        if (i == start && fracDiv == 1.0) return false;
+        if (!hasDigits) return false;
         value = sign * (whole + frac / fracDiv);
         return true;
     }
@@ -693,6 +771,7 @@ internal static class MacReader
 {
     private const int PROC_PIDT_SHORTBSDINFO = 13;
     private const int MaxBufferSize = 128 * 1024 * 1024;
+    private const int ProcBsdShortInfoSize = 64;
 
     [DllImport("libSystem.dylib", SetLastError = true)]
     private static extern int proc_listpids(uint type, uint typeinfo, IntPtr buffer, int buffersize);
@@ -703,14 +782,7 @@ internal static class MacReader
     [DllImport("libSystem.dylib", SetLastError = true)]
     private static extern int proc_pidpath(int pid, IntPtr buffer, uint buffersize);
 
-    [StructLayout(LayoutKind.Explicit, Size = 64)]
-    private struct proc_bsdshortinfo
-    {
-        [FieldOffset(0)] public uint pbsi_pid;
-        [FieldOffset(4)] public uint pbsi_ppid;
-    }
-
-    public static unsafe void Write(TextWriter writer, ProcessField fields)
+    public static void Write(TextWriter writer, ProcessFields fields)
     {
         var size = 4096;
         var pids = Marshal.AllocHGlobal(size);
@@ -726,7 +798,7 @@ internal static class MacReader
             }
 
             var count = used / 4;
-            var info = Marshal.AllocHGlobal(sizeof(proc_bsdshortinfo));
+            var info = Marshal.AllocHGlobal(ProcBsdShortInfoSize);
             var pathBuf = Marshal.AllocHGlobal(4096);
             try
             {
@@ -735,24 +807,11 @@ internal static class MacReader
                     var pid = Marshal.ReadInt32(pids, i * 4);
                     if (pid <= 0) continue;
 
-                    var len = proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, info, sizeof(proc_bsdshortinfo));
-                    if (len != sizeof(proc_bsdshortinfo)) continue;
+                    var len = proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, info, ProcBsdShortInfoSize);
+                    if (len != ProcBsdShortInfoSize) continue;
 
-                    var pbsi = *(proc_bsdshortinfo*)info.ToPointer();
-                    var ppid = (int)pbsi.pbsi_ppid;
-
-                    string? path = null;
-                    string? name = null;
-                    if ((fields & ProcessField.Name) != 0 || (fields & ProcessField.Path) != 0 || fields == 0)
-                    {
-                        if (proc_pidpath(pid, pathBuf, 4096) > 0)
-                        {
-                            path = Marshal.PtrToStringAnsi(pathBuf);
-                            if ((fields & ProcessField.Name) != 0 || fields == 0)
-                                name = Path.GetFileName(path);
-                        }
-                    }
-
+                    var ppid = Marshal.ReadInt32(info, 4);
+                    var (name, path) = GetNameAndPath(fields, pid, pathBuf);
                     NativeHelpers.WriteProcessInfo(writer, fields, pid, ppid, name, path);
                 }
             }
@@ -766,5 +825,18 @@ internal static class MacReader
         {
             Marshal.FreeHGlobal(pids);
         }
+    }
+
+    private static (string? Name, string? Path) GetNameAndPath(ProcessFields fields, int pid, IntPtr pathBuf)
+    {
+        if (((fields & ProcessFields.Name) == 0) && ((fields & ProcessFields.Path) == 0) && (fields != 0))
+            return (null, null);
+        if (proc_pidpath(pid, pathBuf, 4096) <= 0)
+            return (null, null);
+        var path = Marshal.PtrToStringAnsi(pathBuf);
+        if (string.IsNullOrEmpty(path))
+            return (null, null);
+        var name = ((fields & ProcessFields.Name) != 0 || fields == 0) ? Path.GetFileName(path) : null;
+        return (name, path);
     }
 }

@@ -23,10 +23,10 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        run: npm install --no-optional
+        run: npm ci --no-optional --ignore-scripts
 
       - name: Ensure latest npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@latest --ignore-scripts
 
       - name: Resolve next release version
         id: version
@@ -87,10 +87,10 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Install dependencies
-        run: npm install --no-optional
+        run: npm ci --no-optional --ignore-scripts
 
       - name: Ensure latest npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@latest --ignore-scripts
 
       - name: Build CLI binary
         run: node packages/ps/scripts/build-native-all.ts cli ${{ matrix.rid }}
@@ -175,10 +175,10 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Ensure latest npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@latest --ignore-scripts
 
       - name: Download native binaries for this runner
         uses: actions/download-artifact@v8
@@ -210,4 +210,4 @@ jobs:
       - name: Release to npm and GitHub
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+        run: ./node_modules/.bin/semantic-release

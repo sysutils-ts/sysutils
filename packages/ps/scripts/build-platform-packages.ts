@@ -80,7 +80,8 @@ function buildOne(target: Target, version: string): string {
   fs.copyFileSync(cliSrc, cliDest);
   if (target.platform !== "win32") {
     try {
-      fs.chmodSync(cliDest, 0o755);
+      // Owner and group read/execute only; no world access.
+      fs.chmodSync(cliDest, 0o750);
     } catch {}
   }
 
