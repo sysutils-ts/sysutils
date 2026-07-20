@@ -10,10 +10,8 @@
     }
   },
   "files": [
-    "dist/index.mjs",
-    "dist/index.mjs.map",
-    "dist/index.d.mts",
-    "dist/index.d.mts.map"
+    "dist",
+    "!dist/*.test.*"
   ],
   "publishConfig": {
     "access": "public"
