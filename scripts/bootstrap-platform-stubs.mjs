@@ -1,4 +1,4 @@
-/* eslint-disable no-var */
+/* eslint-disable */
 import fs from "node:fs";
 import path from "node:path";
 
