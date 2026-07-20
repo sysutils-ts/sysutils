@@ -93,7 +93,7 @@ internal readonly struct Options
                 "cpu" => ProcessFields.Cpu,
                 "uid" => ProcessFields.Uid,
                 "path" => ProcessFields.Path,
-                "starttime" or "start" or "startTime" => ProcessFields.StartTime,
+                "starttime" or "start" => ProcessFields.StartTime,
                 _ => throw new ArgumentException($"Unknown field: {token}")
             };
 
@@ -362,20 +362,9 @@ internal sealed class JsonWriter
     private void WriteSurrogatePair(char high, char low)
     {
         var codePoint = char.ConvertToUtf32(high, low);
-        if (codePoint < 0x20)
-        {
-            _writer.Write($"\\u{codePoint:x4}");
-        }
-        else if (codePoint < 0x10000)
-        {
-            _writer.Write((char)codePoint);
-        }
-        else
-        {
-            // surrogate pair written as two \u escapes is safe for all decoders
-            _writer.Write($"\\u{(0xD800 + ((codePoint - 0x10000) >> 10)):x4}");
-            _writer.Write($"\\u{(0xDC00 + ((codePoint - 0x10000) & 0x3FF)):x4}");
-        }
+        // surrogate pair written as two \u escapes is safe for all decoders
+        _writer.Write($"\\u{(0xD800 + ((codePoint - 0x10000) >> 10)):x4}");
+        _writer.Write($"\\u{(0xDC00 + ((codePoint - 0x10000) & 0x3FF)):x4}");
     }
 
     private void WriteSimpleEscape(char c)
@@ -650,7 +639,7 @@ internal static class LinuxReader
                 return kb * 1024.0;
             }
         }
-        return 1;
+        return -1;
     }
 
     private static byte[]? ReadProcFile(string dir, string file)
@@ -797,7 +786,7 @@ internal static class LinuxReader
 
     private static double ComputeMemory(bool statOk, StatInfo stat, in LinuxContext ctx, ProcessFields fields)
     {
-        if (!statOk || ((fields & ProcessFields.Memory) == 0 && fields != 0))
+        if (!statOk || ((fields & ProcessFields.Memory) == 0 && fields != 0) || ctx.TotalMem <= 0)
         {
             return -1;
         }
@@ -1070,7 +1059,6 @@ internal static class LinuxReader
             i++;
         }
 
-        var start = i;
         long whole = 0;
         var hasDigits = false;
         while (i < data.Length && data[i] >= '0' && data[i] <= '9')
@@ -1227,7 +1215,7 @@ internal static class MacReader
             return (null, null);
         }
 
-        var path = Marshal.PtrToStringAnsi(pathBuf);
+        var path = Marshal.PtrToStringUTF8(pathBuf);
         if (string.IsNullOrEmpty(path))
         {
             return (null, null);

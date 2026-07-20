@@ -25,9 +25,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-optional --ignore-scripts
 
-      - name: Ensure latest npm
-        run: npm install -g npm@latest --ignore-scripts
-
       - name: Resolve next release version
         id: version
         env:
@@ -88,9 +85,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --no-optional --ignore-scripts
-
-      - name: Ensure latest npm
-        run: npm install -g npm@latest --ignore-scripts
 
       - name: Build CLI binary
         run: node packages/ps/scripts/build-native-all.ts cli ${{ matrix.rid }}
@@ -176,9 +170,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
-
-      - name: Ensure latest npm
-        run: npm install -g npm@latest --ignore-scripts
 
       - name: Download native binaries for this runner
         uses: actions/download-artifact@v8

@@ -1,11 +1,10 @@
-/* eslint-disable */
 import fs from "node:fs";
 import path from "node:path";
 
-var outDir = path.resolve(process.cwd(), "tmp-platform-stubs");
-var version = process.argv[2] || "0.0.0";
+const outDir = path.resolve(process.cwd(), "tmp-platform-stubs");
+const version = process.argv[2] || "0.0.0";
 
-var platforms = [
+const platforms = [
   { platform: "darwin", arch: "arm64" },
   { platform: "darwin", arch: "x64" },
   { platform: "linux", arch: "arm64" },
@@ -16,43 +15,35 @@ var platforms = [
 
 fs.mkdirSync(outDir, { recursive: true });
 
-var workspaces = [];
-platforms.forEach(function (entry) {
-  var name = "@sysutils/ps-" + entry.platform + "-" + entry.arch;
-  workspaces.push("./" + name.replace("@", "").replace("/", "-"));
+const workspaces = platforms.map((entry) => {
+  const name = `@sysutils/ps-${entry.platform}-${entry.arch}`;
+  return `./${name.replace("@", "").replace("/", "-")}`;
 });
 
-var rootPkg = {
+const rootPkg = {
   name: "@sysutils/platform-stubs-root",
   version: "0.0.0",
   "private": true,
   description:
     "Temporary workspace root for bootstrapping @sysutils/ps-* platform packages.",
-  workspaces: workspaces,
+  workspaces,
 };
 
 fs.writeFileSync(
   path.join(outDir, "package.json"),
-  JSON.stringify(
-    rootPkg,
-    function (_key, value) {
-      return value;
-    },
-    2,
-  ) + "\n",
+  `${JSON.stringify(rootPkg, null, 2)}\n`,
   "utf8",
 );
 
-platforms.forEach(function (entry) {
-  var name = "@sysutils/ps-" + entry.platform + "-" + entry.arch;
-  var dir = path.join(outDir, name.replace("@", "").replace("/", "-"));
+for (const entry of platforms) {
+  const name = `@sysutils/ps-${entry.platform}-${entry.arch}`;
+  const dir = path.join(outDir, name.replace("@", "").replace("/", "-"));
   fs.mkdirSync(dir, { recursive: true });
 
-  var pkg = {
-    name: name,
-    version: version,
-    description:
-      "Stub package for " + name + ". This reserves the package name and marks the supported OS/CPU. The first real release will be published by CI with the native binaries.",
+  const pkg = {
+    name,
+    version,
+    description: `Stub package for ${name}. This reserves the package name and marks the supported OS/CPU. The first real release will be published by CI with the native binaries.`,
     os: [entry.platform],
     cpu: [entry.arch],
     files: ["README.md"],
@@ -69,26 +60,18 @@ platforms.forEach(function (entry) {
 
   fs.writeFileSync(
     path.join(dir, "package.json"),
-    JSON.stringify(
-      pkg,
-      function (_key, value) {
-        return value;
-      },
-      2,
-    ) + "\n",
+    `${JSON.stringify(pkg, null, 2)}\n`,
     "utf8",
   );
 
   fs.writeFileSync(
     path.join(dir, "README.md"),
-    "# " +
-      name +
-      "\n\nStub package that reserves the platform-specific package name for `@sysutils/ps`.\nThe actual native binaries are built and published by CI.\n",
+    `# ${name}\n\nStub package that reserves the platform-specific package name for \`@sysutils/ps\`.\nThe actual native binaries are built and published by CI.\n`,
     "utf8",
   );
 
-  console.log("Created " + dir);
-});
+  console.log(`Created ${dir}`);
+}
 
 console.log("\nTo publish all stubs with one command (using npm workspaces):\n");
 console.log("  cd tmp-platform-stubs");
