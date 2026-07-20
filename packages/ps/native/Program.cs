@@ -37,9 +37,15 @@ internal struct ProcessInfo
     public double Cpu;       // percent of one CPU, -1 means null
 }
 
-internal readonly struct Options(ProcessFields fields)
+internal readonly struct Options(ProcessFields fields) : IEquatable<Options>
 {
     public ProcessFields Fields { get; } = fields;
+
+    public bool Equals(Options other) => Fields == other.Fields;
+
+    public override bool Equals(object? obj) => obj is Options other && Equals(other);
+
+    public override int GetHashCode() => Fields.GetHashCode();
 
     public static Options Parse(string[] args)
     {
@@ -442,14 +448,14 @@ internal static class NativeHelpers
     }
 }
 
-internal static partial class WindowsReader
+internal static class WindowsReader
 {
     private const int SystemProcessInformationClass = 5;
     private const int STATUS_INFO_LENGTH_MISMATCH = -1073741820;
     private const int MaxBufferSize = 128 * 1024 * 1024;
 
-    [LibraryImport("ntdll.dll")]
-    private static partial int NtQuerySystemInformation(
+    [DllImport("ntdll.dll")]
+    private static extern int NtQuerySystemInformation(
         int SystemInformationClass,
         IntPtr SystemInformation,
         int SystemInformationLength,
@@ -568,30 +574,59 @@ internal static partial class WindowsReader
     private const uint TOKEN_QUERY = 0x0008;
     private const int TokenUser = 1;
 
-    [LibraryImport("kernel32.dll", SetLastError = true)]
-    private static partial IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
 
-    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool CloseHandle(IntPtr hObject);
+    private static extern bool CloseHandle(IntPtr hObject);
 
-    [LibraryImport("advapi32.dll", SetLastError = true)]
+    [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
+    private static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
 
-    [LibraryImport("advapi32.dll", SetLastError = true)]
+    [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool GetTokenInformation(IntPtr tokenHandle, int tokenInformationClass, IntPtr tokenInformation, uint tokenInformationLength, out uint returnLength);
+    private static extern bool GetTokenInformation(IntPtr tokenHandle, int tokenInformationClass, IntPtr tokenInformation, uint tokenInformationLength, out uint returnLength);
 
-    [LibraryImport("advapi32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool LookupAccountSid(string? lpSystemName, IntPtr sid, IntPtr name, ref int cchName, IntPtr referencedDomainName, ref int cchReferencedDomainName, out int peUse);
+    private static extern bool LookupAccountSid(string? lpSystemName, IntPtr sid, IntPtr name, ref int cchName, IntPtr referencedDomainName, ref int cchReferencedDomainName, out int peUse);
 
-    [LibraryImport("advapi32.dll", SetLastError = true)]
-    private static partial IntPtr GetSidSubAuthorityCount(IntPtr sid);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern IntPtr GetSidSubAuthorityCount(IntPtr sid);
 
-    [LibraryImport("advapi32.dll", SetLastError = true)]
-    private static partial IntPtr GetSidSubAuthority(IntPtr sid, uint nSubAuthority);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern IntPtr GetSidSubAuthority(IntPtr sid, uint nSubAuthority);
+
+    private static bool TryGetTokenUserSid(IntPtr hToken, out IntPtr sid, out IntPtr tokenInfo)
+    {
+        sid = IntPtr.Zero;
+        tokenInfo = IntPtr.Zero;
+        GetTokenInformation(hToken, TokenUser, IntPtr.Zero, 0, out uint needed);
+        if (needed == 0)
+        {
+            return false;
+        }
+
+        tokenInfo = Marshal.AllocHGlobal((int)needed);
+        if (!GetTokenInformation(hToken, TokenUser, tokenInfo, needed, out _))
+        {
+            Marshal.FreeHGlobal(tokenInfo);
+            tokenInfo = IntPtr.Zero;
+            return false;
+        }
+
+        sid = Marshal.ReadIntPtr(tokenInfo);
+        if (sid == IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(tokenInfo);
+            tokenInfo = IntPtr.Zero;
+            return false;
+        }
+
+        return true;
+    }
 
     private static void TryGetProcessOwner(int pid, out int uid, out string? user)
     {
@@ -613,26 +648,13 @@ internal static partial class WindowsReader
 
             try
             {
-                GetTokenInformation(hToken, TokenUser, IntPtr.Zero, 0, out uint needed);
-                if (needed == 0)
+                if (!TryGetTokenUserSid(hToken, out var sid, out var tokenInfo))
                 {
                     return;
                 }
 
-                var tokenInfo = Marshal.AllocHGlobal((int)needed);
                 try
                 {
-                    if (!GetTokenInformation(hToken, TokenUser, tokenInfo, needed, out _))
-                    {
-                        return;
-                    }
-
-                    var sid = Marshal.ReadIntPtr(tokenInfo);
-                    if (sid == IntPtr.Zero)
-                    {
-                        return;
-                    }
-
                     user = LookupAccountName(sid);
                     uid = GetSidRid(sid);
                 }
@@ -709,13 +731,13 @@ internal static partial class WindowsReader
     }
 }
 
-internal static partial class LinuxReader
+internal static class LinuxReader
 {
     private const int _SC_CLK_TCK = 2;
     private const int PATH_MAX = 4096;
 
-    [LibraryImport("libc", SetLastError = true)]
-    private static partial long sysconf(int name);
+    [DllImport("libc", SetLastError = true)]
+    private static extern long sysconf(int name);
 
     [DllImport("libc", SetLastError = true)]
     private static extern long readlink(string pathname, byte[] buf, long bufsize);
@@ -1290,23 +1312,23 @@ internal static partial class LinuxReader
     }
 }
 
-internal static partial class MacReader
+internal static class MacReader
 {
     private const int PROC_PIDTBSDINFO = 3;
     private const int MaxBufferSize = 128 * 1024 * 1024;
     private const int ProcBsdInfoSize = 136;
 
-    [LibraryImport("libSystem.dylib", SetLastError = true)]
-    private static partial int proc_listpids(uint type, uint typeinfo, IntPtr buffer, int buffersize);
+    [DllImport("libSystem.dylib", SetLastError = true)]
+    private static extern int proc_listpids(uint type, uint typeinfo, IntPtr buffer, int buffersize);
 
-    [LibraryImport("libSystem.dylib", SetLastError = true)]
-    private static partial int proc_pidinfo(int pid, int flavor, ulong arg, IntPtr buffer, int buffersize);
+    [DllImport("libSystem.dylib", SetLastError = true)]
+    private static extern int proc_pidinfo(int pid, int flavor, ulong arg, IntPtr buffer, int buffersize);
 
-    [LibraryImport("libSystem.dylib", SetLastError = true)]
-    private static partial int proc_pidpath(int pid, IntPtr buffer, uint buffersize);
+    [DllImport("libSystem.dylib", SetLastError = true)]
+    private static extern int proc_pidpath(int pid, IntPtr buffer, uint buffersize);
 
-    [LibraryImport("libSystem.dylib")]
-    private static partial IntPtr getpwuid(uint uid);
+    [DllImport("libSystem.dylib")]
+    private static extern IntPtr getpwuid(uint uid);
 
     public static void Write(TextWriter writer, ProcessFields fields)
     {
