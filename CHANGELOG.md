@@ -1,3 +1,17 @@
+# [1.2.0](https://github.com/sysutils-ts/sysutils/compare/v1.1.0...v1.2.0) (2026-07-20)
+
+
+### Bug Fixes
+
+* **ci:** restore contents:write and id-token:write to resolve-version job ([356e7af](https://github.com/sysutils-ts/sysutils/commit/356e7afe261dbfcbae53ff5284abe16f5a607f87))
+* **ps:** resolve SonarCloud and Codacy reliability/security findings ([#20](https://github.com/sysutils-ts/sysutils/issues/20)) ([065ef36](https://github.com/sysutils-ts/sysutils/commit/065ef36c5595294068258838ac335f5c3571873b))
+
+
+### Features
+
+* **ps:** add /proc fallback, field parity aliases, and toProcessRow helper ([#18](https://github.com/sysutils-ts/sysutils/issues/18)) ([05cacfe](https://github.com/sysutils-ts/sysutils/commit/05cacfe930ad9fa366c924f7798c14c83420d480))
+* **ps:** complete ProcessInfo parity on Windows/macOS and prefer /proc on Linux auto backend ([#22](https://github.com/sysutils-ts/sysutils/issues/22)) ([fdce2d1](https://github.com/sysutils-ts/sysutils/commit/fdce2d1429f1a586b92a31eff0d4992cc0a0e782)), closes [#21](https://github.com/sysutils-ts/sysutils/issues/21)
+
 # [1.1.0](https://github.com/sysutils-ts/sysutils/compare/v1.0.0...v1.1.0) (2026-07-19)
 
 
