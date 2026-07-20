@@ -95,7 +95,7 @@ interface BaseProcess {
 }
 
 function getCommand(cmd: string | null, name: string): string | null {
-  if (cmd && cmd.length > 0) return cmd;
+  if (cmd !== null && cmd.length > 0) return cmd;
   if (name.length > 0) return name;
   return null;
 }
@@ -145,16 +145,22 @@ export function normalizeProcessInfo(
     return base as ProcessInfo;
   }
 
-  const fieldValues: Record<string, unknown> = { ...base };
-  const result: Record<string, unknown> = {};
+  const fieldValues: Record<string, unknown> = Object.assign(
+    Object.create(null),
+    base,
+  );
+  const result: Record<string, unknown> = Object.create(null);
   for (const f of requestedFields) {
-    result[f] = fieldValues[f] ?? null;
+    const value = Object.hasOwn(fieldValues, f) ? fieldValues[f] : null;
+    result[f] = value;
   }
   return result as ProcessInfo;
 }
 
 function deriveCommand(info: ProcessInfo): string | null {
-  const value = info.command || info.cmd || info.name;
+  let value: string | null | undefined = info.command;
+  if (typeof value !== "string" || value.length === 0) value = info.cmd;
+  if (typeof value !== "string" || value.length === 0) value = info.name;
   if (typeof value === "string" && value.length > 0) return value;
   return null;
 }

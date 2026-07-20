@@ -23,7 +23,7 @@ export type { ProcessInfo, ProcessRow, PsOptions, ProcessStream } from "./types.
 let cachedDotnetAddon:
   | {
       path: string;
-      addon: { PsModule: { listProcesses: (fields: string) => string } };
+      addon: { PsModule: { listProcesses: (_fields: string) => string } };
     }
   | undefined;
 
@@ -142,27 +142,39 @@ export function getBinaryPath(
   return resolveLocalBinary(backend);
 }
 
-function resolveBackend(options?: PsOptions): SupportedBackend {
-  const requested = options?.backend ?? backendFromEnv() ?? "auto";
-  if (requested !== "auto") {
-    if (requested === "proc") {
-      if (!procBackendAvailable()) {
-        throw new Error("The /proc backend is only available on Linux.");
-      }
-      return "proc";
-    }
-    if (requested !== "dotnet" && requested !== "dotnet-nodeapi") {
-      throw new Error(
-        "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
-      );
-    }
-    return requested;
-  }
+function resolveAutoBackend(): SupportedBackend {
   if (getBinaryPath("dotnet")) return "dotnet";
   if (procBackendAvailable()) return "proc";
   throw new Error(
     "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
   );
+}
+
+function resolveExplicitBackend(
+  requested: SupportedBackend,
+): SupportedBackend {
+  if (requested === "proc") {
+    if (!procBackendAvailable()) {
+      throw new Error("The /proc backend is only available on Linux.");
+    }
+    return "proc";
+  }
+  return requested;
+}
+
+function resolveBackend(options?: PsOptions): SupportedBackend {
+  const requested = options?.backend ?? backendFromEnv() ?? "auto";
+  if (requested === "auto") return resolveAutoBackend();
+  if (
+    requested !== "dotnet" &&
+    requested !== "dotnet-nodeapi" &&
+    requested !== "proc"
+  ) {
+    throw new Error(
+      "No @sysutils/ps native backend found. Run `npm run build` in @sysutils/ps (or install a prebuilt binary).",
+    );
+  }
+  return resolveExplicitBackend(requested);
 }
 
 function pushJsonLine(

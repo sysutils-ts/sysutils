@@ -151,16 +151,7 @@ function parseStat(data: Buffer): ProcStat | undefined {
   const rpar = str.lastIndexOf(")");
   if (rpar < 0 || rpar + 1 >= str.length) return undefined;
 
-  const tokens: string[] = [];
-  let i = rpar + 1;
-  while (i < str.length) {
-    while (i < str.length && str[i] === " ") i++;
-    if (i >= str.length) break;
-    const start = i;
-    while (i < str.length && str[i] !== " ") i++;
-    tokens.push(str.slice(start, i));
-  }
-
+  const tokens = str.slice(rpar + 1).trim().split(/\s+/);
   if (tokens.length < 22) return undefined;
 
   const ppid = Number(tokens[1]);
@@ -177,7 +168,7 @@ function parseStat(data: Buffer): ProcStat | undefined {
 }
 
 function decodeCmdline(data: Buffer): string | null {
-  const s = data.toString("utf8").replaceAll("\0", " ").trim();
+  const s = data.toString("utf8").split("\0").join(" ").trim();
   return s.length ? s : null;
 }
 
