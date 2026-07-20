@@ -1,6 +1,6 @@
 {
   "name": "@sysutils/ps",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Fast, cross-platform process listing as a Node.js Readable stream.",
   "type": "module",
   "exports": {
@@ -50,12 +50,12 @@
   },
   "optionalDependencies": {
     "node-api-dotnet": "0.9.21",
-    "@sysutils/ps-darwin-arm64": "1.2.0",
-    "@sysutils/ps-darwin-x64": "1.2.0",
-    "@sysutils/ps-linux-arm64": "1.2.0",
-    "@sysutils/ps-linux-x64": "1.2.0",
-    "@sysutils/ps-win32-arm64": "1.2.0",
-    "@sysutils/ps-win32-x64": "1.2.0"
+    "@sysutils/ps-darwin-arm64": "1.2.1",
+    "@sysutils/ps-darwin-x64": "1.2.1",
+    "@sysutils/ps-linux-arm64": "1.2.1",
+    "@sysutils/ps-linux-x64": "1.2.1",
+    "@sysutils/ps-win32-arm64": "1.2.1",
+    "@sysutils/ps-win32-x64": "1.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

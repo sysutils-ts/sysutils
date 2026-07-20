@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/sysutils-ts/sysutils/compare/v1.2.0...v1.2.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* **ps:** include all dist chunks in published files ([a972e3c](https://github.com/sysutils-ts/sysutils/commit/a972e3c037d4fed38086e1ea7c52db8af1ee169b))
+
 # [1.2.0](https://github.com/sysutils-ts/sysutils/compare/v1.1.0...v1.2.0) (2026-07-20)
 
 
