@@ -23,7 +23,7 @@ public class JsonWriterTests
             StartTime = "2026-07-18T18:00:00.0000000+00:00",
             Memory = 1.5,
             Cpu = 0.5,
-        }, ProcessField.All);
+        }, ProcessFields.All);
         var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal(42, doc.RootElement.GetProperty("pid").GetInt32());
         Assert.Equal(1, doc.RootElement.GetProperty("ppid").GetInt32());
@@ -51,7 +51,7 @@ public class JsonWriterTests
             StartTime = "2026-07-18T18:00:00.0000000+00:00",
             Memory = 2.0,
             Cpu = 1.0,
-        }, ProcessField.Pid | ProcessField.Name);
+        }, ProcessFields.Pid | ProcessFields.Name);
         var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal(7, doc.RootElement.GetProperty("pid").GetInt32());
         Assert.Equal("bash", doc.RootElement.GetProperty("name").GetString());
@@ -79,7 +79,7 @@ public class JsonWriterTests
             StartTime = null,
             Memory = -1,
             Cpu = -1,
-        }, ProcessField.All);
+        }, ProcessFields.All);
         var doc = JsonDocument.Parse(sw.ToString());
         Assert.Equal(1, doc.RootElement.GetProperty("pid").GetInt32());
         Assert.Equal(0, doc.RootElement.GetProperty("ppid").GetInt32());
@@ -138,14 +138,14 @@ public class OptionsTests
     public void Parse_DefaultReturnsAllFields()
     {
         var o = Options.Parse(System.Array.Empty<string>());
-        Assert.Equal(ProcessField.All, o.Fields);
+        Assert.Equal(ProcessFields.All, o.Fields);
     }
 
     [Fact]
     public void Parse_FieldsAreParsed()
     {
         var o = Options.Parse(new[] { "--fields", "pid,name" });
-        Assert.Equal(ProcessField.Pid | ProcessField.Name, o.Fields);
+        Assert.Equal(ProcessFields.Pid | ProcessFields.Name, o.Fields);
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class OptionsTests
     public void Parse_AcceptsMixedCase()
     {
         var o = Options.Parse(new[] { "--fields", "Pid,Name,CPU" });
-        Assert.Equal(ProcessField.Pid | ProcessField.Name | ProcessField.Cpu, o.Fields);
+        Assert.Equal(ProcessFields.Pid | ProcessFields.Name | ProcessFields.Cpu, o.Fields);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class OptionsTests
     {
         var o1 = Options.Parse(new[] { "--fields", "cmd" });
         var o2 = Options.Parse(new[] { "--fields", "command" });
-        Assert.Equal(ProcessField.Command, o1.Fields);
-        Assert.Equal(ProcessField.Command, o2.Fields);
+        Assert.Equal(ProcessFields.Command, o1.Fields);
+        Assert.Equal(ProcessFields.Command, o2.Fields);
     }
 }

@@ -17,13 +17,13 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
-      - run: npm install
+      - run: npm ci --ignore-scripts
       - run: npm run build:cli -w packages/ps
       - run: npm run build:nodeapi -w packages/ps
       - run: npm run build -w packages/ps
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm install ps-list@9.0.0 --no-save -w packages/ps
+      - run: npm install --ignore-scripts ps-list@9.0.0 --no-save -w packages/ps
       - run: npm test
         env:
           SYSUTILS_PS_TEST_NODEAPI: 1

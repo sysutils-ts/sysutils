@@ -64,12 +64,12 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Install ps-list for comparison
         if: env.SYSUTILS_PS_BENCHMARK_COMPARE == '1'
         continue-on-error: true
-        run: npm install ps-list@9.0.0 --no-save -w packages/ps
+        run: npm install --ignore-scripts ps-list@9.0.0 --no-save -w packages/ps
 
       - name: Build native CLI
         run: npm run build:cli -w packages/ps
@@ -130,7 +130,7 @@ jobs:
 
       - name: Deploy to GitHub Pages
         if: ${{ steps.pick-badge.outputs.exists == 'true' }}
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@47f197a2200bb9de68ba5f48fad1c088eb1c4a32 # v4.0.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site

@@ -5,38 +5,38 @@ const outDir = path.resolve(process.cwd(), "tmp-platform-stubs");
 const version = process.argv[2] || "0.0.0";
 
 const platforms = [
-  ["darwin", "arm64"],
-  ["darwin", "x64"],
-  ["linux", "arm64"],
-  ["linux", "x64"],
-  ["win32", "arm64"],
-  ["win32", "x64"],
+  { platform: "darwin", arch: "arm64" },
+  { platform: "darwin", arch: "x64" },
+  { platform: "linux", arch: "arm64" },
+  { platform: "linux", arch: "x64" },
+  { platform: "win32", arch: "arm64" },
+  { platform: "win32", arch: "x64" },
 ];
 
 fs.mkdirSync(outDir, { recursive: true });
 
+const workspaces = platforms.map((entry) => {
+  const name = `@sysutils/ps-${entry.platform}-${entry.arch}`;
+  return `./${name.replace("@", "").replace("/", "-")}`;
+});
+
 const rootPkg = {
   name: "@sysutils/platform-stubs-root",
   version: "0.0.0",
-  private: true,
+  "private": true,
   description:
     "Temporary workspace root for bootstrapping @sysutils/ps-* platform packages.",
-  workspaces: platforms.map(
-    ([platform, arch]) =>
-      `./${`@sysutils/ps-${platform}-${arch}`
-        .replace("@", "")
-        .replace("/", "-")}`,
-  ),
+  workspaces,
 };
 
 fs.writeFileSync(
   path.join(outDir, "package.json"),
-  JSON.stringify(rootPkg, null, 2) + "\n",
+  `${JSON.stringify(rootPkg, null, 2)}\n`,
   "utf8",
 );
 
-for (const [platform, arch] of platforms) {
-  const name = `@sysutils/ps-${platform}-${arch}`;
+for (const entry of platforms) {
+  const name = `@sysutils/ps-${entry.platform}-${entry.arch}`;
   const dir = path.join(outDir, name.replace("@", "").replace("/", "-"));
   fs.mkdirSync(dir, { recursive: true });
 
@@ -44,8 +44,8 @@ for (const [platform, arch] of platforms) {
     name,
     version,
     description: `Stub package for ${name}. This reserves the package name and marks the supported OS/CPU. The first real release will be published by CI with the native binaries.`,
-    os: [platform],
-    cpu: [arch],
+    os: [entry.platform],
+    cpu: [entry.arch],
     files: ["README.md"],
     publishConfig: {
       access: "public",
@@ -60,7 +60,7 @@ for (const [platform, arch] of platforms) {
 
   fs.writeFileSync(
     path.join(dir, "package.json"),
-    JSON.stringify(pkg, null, 2) + "\n",
+    `${JSON.stringify(pkg, null, 2)}\n`,
     "utf8",
   );
 
@@ -73,12 +73,12 @@ for (const [platform, arch] of platforms) {
   console.log(`Created ${dir}`);
 }
 
-console.log(`\nTo publish all stubs with one command (using npm workspaces):\n`);
-console.log(`  cd tmp-platform-stubs`);
-console.log(`  npm publish --workspaces --access public`);
-console.log(`\nIf you have a granular token with bypass 2FA, set it first:\n`);
-console.log(`  $env:NODE_AUTH_TOKEN = "npm_..."   # PowerShell`);
-console.log(`  export NODE_AUTH_TOKEN=npm_...     # bash`);
-console.log(`  cd tmp-platform-stubs && npm publish --workspaces --access public`);
-console.log(`\nOr publish each one individually:\n`);
-console.log(`  for d in tmp-platform-stubs/*; do (cd "$d" && npm publish --access public); done`);
+console.log("\nTo publish all stubs with one command (using npm workspaces):\n");
+console.log("  cd tmp-platform-stubs");
+console.log("  npm publish --workspaces --access public");
+console.log("\nIf you have a granular token with bypass 2FA, set it first:\n");
+console.log("  $env:NODE_AUTH_TOKEN = \"npm_...\"   # PowerShell");
+console.log("  export NODE_AUTH_TOKEN=npm_...     # bash");
+console.log("  cd tmp-platform-stubs && npm publish --workspaces --access public");
+console.log("\nOr publish each one individually:\n");
+console.log("  for d in tmp-platform-stubs/*; do (cd \"$d\" && npm publish --access public); done");

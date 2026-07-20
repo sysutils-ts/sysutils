@@ -1,5 +1,11 @@
 ---
+exclude_paths:
+  - "package-lock.json"
+  - "scripts/bootstrap-platform-stubs.mjs"
 engines:
   eslint-8:
     exclude_paths:
       - "packages/ps/src/**"
+  opengrep:
+    exclude_paths:
+      - "packages/ps/native/Program.cs"

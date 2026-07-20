@@ -18,8 +18,8 @@ function setOutput(lines) {
   }
 }
 
-if (result && result.nextRelease) {
-  setOutput(`version=${result.nextRelease.version}\nreleased=true\n`);
+if ((result || {}).nextRelease) {
+  setOutput("version=" + result.nextRelease.version + "\nreleased=true\n");
 } else {
   setOutput("released=false\n");
 }
