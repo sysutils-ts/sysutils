@@ -37,10 +37,9 @@ internal struct ProcessInfo
     public double Cpu;       // percent of one CPU, -1 means null
 }
 
-internal readonly struct Options
+internal readonly struct Options(ProcessFields fields)
 {
-    public ProcessFields Fields { get; }
-    public Options(ProcessFields fields) => Fields = fields;
+    public ProcessFields Fields { get; } = fields;
 
     public static Options Parse(string[] args)
     {
@@ -78,7 +77,7 @@ internal readonly struct Options
         while (!span.IsEmpty)
         {
             var idx = span.IndexOf(',');
-            var part = idx < 0 ? span : span.Slice(0, idx);
+            var part = idx < 0 ? span : span[..idx];
             var token = part.Trim().ToString();
             if (string.IsNullOrEmpty(token))
             {
@@ -100,7 +99,7 @@ internal readonly struct Options
                 _ => throw new ArgumentException($"Unknown field: {token}")
             };
 
-            span = idx < 0 ? ReadOnlySpan<char>.Empty : span.Slice(idx + 1);
+            span = idx < 0 ? [] : span[(idx + 1)..];
         }
         return result;
     }
@@ -161,19 +160,13 @@ internal sealed class JsonWriter
 
     public JsonWriter(TextWriter writer)
     {
-        if (writer is null)
-        {
-            throw new ArgumentNullException(nameof(writer));
-        }
+        ArgumentNullException.ThrowIfNull(writer);
         _writer = writer;
     }
 
     public static void Write(TextWriter writer, ProcessInfo p, ProcessFields fields)
     {
-        if (writer is null)
-        {
-            throw new ArgumentNullException(nameof(writer));
-        }
+        ArgumentNullException.ThrowIfNull(writer);
         new JsonWriter(writer).Write(p, fields);
     }
 
@@ -315,7 +308,11 @@ internal sealed class JsonWriter
 
     private void WriteUser(ref bool first, ProcessInfo p)
     {
-        if (p.User == null) return;
+        if (p.User == null)
+        {
+            return;
+        }
+
         WriteField("user", ref first);
         WriteString(p.User);
     }
@@ -445,14 +442,14 @@ internal static class NativeHelpers
     }
 }
 
-internal static class WindowsReader
+internal static partial class WindowsReader
 {
     private const int SystemProcessInformationClass = 5;
     private const int STATUS_INFO_LENGTH_MISMATCH = -1073741820;
     private const int MaxBufferSize = 128 * 1024 * 1024;
 
-    [DllImport("ntdll.dll")]
-    private static extern int NtQuerySystemInformation(
+    [LibraryImport("ntdll.dll")]
+    private static partial int NtQuerySystemInformation(
         int SystemInformationClass,
         IntPtr SystemInformation,
         int SystemInformationLength,
@@ -521,7 +518,7 @@ internal static class WindowsReader
         var entrySize = Unsafe.SizeOf<SystemProcessInformation>();
         while (offset + entrySize <= returnLength)
         {
-            var p = MemoryMarshal.AsRef<SystemProcessInformation>(span.Slice(offset));
+            var p = MemoryMarshal.AsRef<SystemProcessInformation>(span[offset..]);
             var pid = p.UniqueProcessId.ToInt32();
             var ppid = p.InheritedFromUniqueProcessId.ToInt32();
 
@@ -571,30 +568,30 @@ internal static class WindowsReader
     private const uint TOKEN_QUERY = 0x0008;
     private const int TokenUser = 1;
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(IntPtr hObject);
+    private static partial bool CloseHandle(IntPtr hObject);
 
-    [DllImport("advapi32.dll", SetLastError = true)]
+    [LibraryImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
+    private static partial bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
 
-    [DllImport("advapi32.dll", SetLastError = true)]
+    [LibraryImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetTokenInformation(IntPtr tokenHandle, int tokenInformationClass, IntPtr tokenInformation, uint tokenInformationLength, out uint returnLength);
+    private static partial bool GetTokenInformation(IntPtr tokenHandle, int tokenInformationClass, IntPtr tokenInformation, uint tokenInformationLength, out uint returnLength);
 
-    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [LibraryImport("advapi32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool LookupAccountSid(string? lpSystemName, IntPtr sid, IntPtr name, ref int cchName, IntPtr referencedDomainName, ref int cchReferencedDomainName, out int peUse);
+    private static partial bool LookupAccountSid(string? lpSystemName, IntPtr sid, IntPtr name, ref int cchName, IntPtr referencedDomainName, ref int cchReferencedDomainName, out int peUse);
 
-    [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern IntPtr GetSidSubAuthorityCount(IntPtr sid);
+    [LibraryImport("advapi32.dll", SetLastError = true)]
+    private static partial IntPtr GetSidSubAuthorityCount(IntPtr sid);
 
-    [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern IntPtr GetSidSubAuthority(IntPtr sid, uint nSubAuthority);
+    [LibraryImport("advapi32.dll", SetLastError = true)]
+    private static partial IntPtr GetSidSubAuthority(IntPtr sid, uint nSubAuthority);
 
     private static void TryGetProcessOwner(int pid, out int uid, out string? user)
     {
@@ -602,23 +599,39 @@ internal static class WindowsReader
         user = null;
 
         var hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)pid);
-        if (hProcess == IntPtr.Zero) return;
+        if (hProcess == IntPtr.Zero)
+        {
+            return;
+        }
+
         try
         {
-            if (!OpenProcessToken(hProcess, TOKEN_QUERY, out var hToken)) return;
+            if (!OpenProcessToken(hProcess, TOKEN_QUERY, out var hToken))
+            {
+                return;
+            }
+
             try
             {
-                uint needed = 0;
-                GetTokenInformation(hToken, TokenUser, IntPtr.Zero, 0, out needed);
-                if (needed == 0) return;
+                GetTokenInformation(hToken, TokenUser, IntPtr.Zero, 0, out uint needed);
+                if (needed == 0)
+                {
+                    return;
+                }
 
                 var tokenInfo = Marshal.AllocHGlobal((int)needed);
                 try
                 {
-                    if (!GetTokenInformation(hToken, TokenUser, tokenInfo, needed, out _)) return;
+                    if (!GetTokenInformation(hToken, TokenUser, tokenInfo, needed, out _))
+                    {
+                        return;
+                    }
 
                     var sid = Marshal.ReadIntPtr(tokenInfo);
-                    if (sid == IntPtr.Zero) return;
+                    if (sid == IntPtr.Zero)
+                    {
+                        return;
+                    }
 
                     user = LookupAccountName(sid);
                     uid = GetSidRid(sid);
@@ -650,10 +663,14 @@ internal static class WindowsReader
             while (true)
             {
                 if (LookupAccountSid(null, sid, nameBuf, ref nameLen, domainBuf, ref domainLen, out _))
+                {
                     return Marshal.PtrToStringUni(nameBuf, nameLen);
+                }
 
                 if (Marshal.GetLastWin32Error() != 122) // ERROR_INSUFFICIENT_BUFFER
+                {
                     return null;
+                }
 
                 Marshal.FreeHGlobal(nameBuf);
                 Marshal.FreeHGlobal(domainBuf);
@@ -671,24 +688,34 @@ internal static class WindowsReader
     private static int GetSidRid(IntPtr sid)
     {
         var pCount = GetSidSubAuthorityCount(sid);
-        if (pCount == IntPtr.Zero) return -1;
+        if (pCount == IntPtr.Zero)
+        {
+            return -1;
+        }
+
         var count = Marshal.ReadByte(pCount);
-        if (count == 0) return -1;
+        if (count == 0)
+        {
+            return -1;
+        }
 
         var pRid = GetSidSubAuthority(sid, (uint)(count - 1));
-        if (pRid == IntPtr.Zero) return -1;
+        if (pRid == IntPtr.Zero)
+        {
+            return -1;
+        }
 
         return Marshal.ReadInt32(pRid);
     }
 }
 
-internal static class LinuxReader
+internal static partial class LinuxReader
 {
     private const int _SC_CLK_TCK = 2;
     private const int PATH_MAX = 4096;
 
-    [DllImport("libc", SetLastError = true)]
-    private static extern long sysconf(int name);
+    [LibraryImport("libc", SetLastError = true)]
+    private static partial long sysconf(int name);
 
     [DllImport("libc", SetLastError = true)]
     private static extern long readlink(string pathname, byte[] buf, long bufsize);
@@ -1263,33 +1290,23 @@ internal static class LinuxReader
     }
 }
 
-internal static class MacReader
+internal static partial class MacReader
 {
     private const int PROC_PIDTBSDINFO = 3;
     private const int MaxBufferSize = 128 * 1024 * 1024;
     private const int ProcBsdInfoSize = 136;
 
-    [DllImport("libSystem.dylib", SetLastError = true)]
-    private static extern int proc_listpids(uint type, uint typeinfo, IntPtr buffer, int buffersize);
+    [LibraryImport("libSystem.dylib", SetLastError = true)]
+    private static partial int proc_listpids(uint type, uint typeinfo, IntPtr buffer, int buffersize);
 
-    [DllImport("libSystem.dylib", SetLastError = true)]
-    private static extern int proc_pidinfo(int pid, int flavor, ulong arg, IntPtr buffer, int buffersize);
+    [LibraryImport("libSystem.dylib", SetLastError = true)]
+    private static partial int proc_pidinfo(int pid, int flavor, ulong arg, IntPtr buffer, int buffersize);
 
-    [DllImport("libSystem.dylib", SetLastError = true)]
-    private static extern int proc_pidpath(int pid, IntPtr buffer, uint buffersize);
+    [LibraryImport("libSystem.dylib", SetLastError = true)]
+    private static partial int proc_pidpath(int pid, IntPtr buffer, uint buffersize);
 
-    [DllImport("libSystem.dylib")]
-    private static extern IntPtr getpwuid(uint uid);
-
-    [StructLayout(LayoutKind.Explicit, Size = 136)]
-    private struct proc_bsdinfo
-    {
-        [FieldOffset(12)] public uint pbi_pid;
-        [FieldOffset(16)] public uint pbi_ppid;
-        [FieldOffset(20)] public uint pbi_uid;
-        [FieldOffset(120)] public ulong pbi_start_tvsec;
-        [FieldOffset(128)] public ulong pbi_start_tvusec;
-    }
+    [LibraryImport("libSystem.dylib")]
+    private static partial IntPtr getpwuid(uint uid);
 
     public static void Write(TextWriter writer, ProcessFields fields)
     {
@@ -1349,46 +1366,52 @@ internal static class MacReader
                 continue;
             }
 
-            unsafe
+            var ppid = (uint)Marshal.ReadInt32(info, 16);
+            var uid = (uint)Marshal.ReadInt32(info, 20);
+            var startSec = (ulong)Marshal.ReadInt64(info, 120);
+            var startUsec = (ulong)Marshal.ReadInt64(info, 128);
+            var (name, path) = GetNameAndPath(fields, pid, pathBuf);
+
+            string? startTime = null;
+            if (((fields & ProcessFields.StartTime) != 0 || fields == 0) && startSec > 0)
             {
-                var pbi = *(proc_bsdinfo*)info.ToPointer();
-                var ppid = (int)pbi.pbi_ppid;
-                var uid = (int)pbi.pbi_uid;
-                var (name, path) = GetNameAndPath(fields, pid, pathBuf);
-
-                string? startTime = null;
-                if (((fields & ProcessFields.StartTime) != 0 || fields == 0) && pbi.pbi_start_tvsec > 0)
-                {
-                    var dt = DateTimeOffset.FromUnixTimeSeconds((long)pbi.pbi_start_tvsec).AddTicks((long)pbi.pbi_start_tvusec * 10);
-                    startTime = dt.ToString("o");
-                }
-
-                string? user = null;
-                if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0 || fields == 0)
-                {
-                    user = GetUserName(pbi.pbi_uid);
-                }
-
-                NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
-                {
-                    Pid = pid,
-                    Ppid = ppid,
-                    Name = name ?? string.Empty,
-                    Path = path,
-                    StartTime = startTime,
-                    Uid = uid,
-                    User = user,
-                });
+                var dt = DateTimeOffset.FromUnixTimeSeconds((long)startSec).AddTicks((long)startUsec * 10);
+                startTime = dt.ToString("o");
             }
+
+            string? user = null;
+            if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0 || fields == 0)
+            {
+                user = GetUserName(uid);
+            }
+
+            NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
+            {
+                Pid = pid,
+                Ppid = (int)ppid,
+                Name = name ?? string.Empty,
+                Path = path,
+                StartTime = startTime,
+                Uid = (int)uid,
+                User = user,
+            });
         }
     }
 
     private static string? GetUserName(uint uid)
     {
         var pw = getpwuid(uid);
-        if (pw == IntPtr.Zero) return null;
+        if (pw == IntPtr.Zero)
+        {
+            return null;
+        }
+
         var namePtr = Marshal.ReadIntPtr(pw);
-        if (namePtr == IntPtr.Zero) return null;
+        if (namePtr == IntPtr.Zero)
+        {
+            return null;
+        }
+
         return Marshal.PtrToStringUTF8(namePtr);
     }
 
