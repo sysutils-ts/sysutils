@@ -44,7 +44,7 @@ internal readonly struct Options
     {
         ProcessFields fields = 0;
         var i = 0;
-        while (i < args.Length) // nosemgrep
+        while (i < args.Length)
         {
             if (args[i] == "--fields")
             {
@@ -131,7 +131,7 @@ internal static class ProcessWriter
 {
     public static void Write(TextWriter writer, ProcessFields fields)
     {
-        ArgumentNullException.ThrowIfNull(writer); // nosemgrep
+        ArgumentNullException.ThrowIfNull(writer);
 
         if (OperatingSystem.IsWindows())
         {
@@ -171,18 +171,18 @@ internal sealed class JsonWriter
         {
             throw new ArgumentNullException(nameof(writer));
         }
-        new JsonWriter(writer).Write(p, fields); // nosemgrep
+        new JsonWriter(writer).Write(p, fields);
     }
 
     public void Write(ProcessInfo p, ProcessFields fields)
     {
-        fields = EnsureFields(fields); // nosemgrep
+        fields = EnsureFields(fields);
 
         _writer.Write('{');
         var first = true;
 
         WriteNumericFields(fields, ref first, p);
-        WriteStringFields(fields, ref first, p); // nosemgrep
+        WriteStringFields(fields, ref first, p);
 
         _writer.WriteLine('}');
     }
@@ -196,27 +196,27 @@ internal sealed class JsonWriter
     {
         if ((fields & ProcessFields.Pid) != 0)
         {
-            WritePid(ref first, p); // nosemgrep
+            WritePid(ref first, p);
         }
 
         if ((fields & ProcessFields.Ppid) != 0)
         {
-            WritePpid(ref first, p); // nosemgrep
+            WritePpid(ref first, p);
         }
 
         if ((fields & ProcessFields.Uid) != 0)
         {
-            WriteUid(ref first, p); // nosemgrep
+            WriteUid(ref first, p);
         }
 
         if ((fields & ProcessFields.Memory) != 0)
         {
-            WriteMemory(ref first, p); // nosemgrep
+            WriteMemory(ref first, p);
         }
 
         if ((fields & ProcessFields.Cpu) != 0)
         {
-            WriteCpu(ref first, p); // nosemgrep
+            WriteCpu(ref first, p);
         }
     }
 
@@ -234,12 +234,12 @@ internal sealed class JsonWriter
 
         if ((fields & ProcessFields.Path) != 0)
         {
-            WritePath(ref first, p); // nosemgrep
+            WritePath(ref first, p);
         }
 
         if ((fields & ProcessFields.StartTime) != 0)
         {
-            WriteStartTime(ref first, p); // nosemgrep
+            WriteStartTime(ref first, p);
         }
     }
 
@@ -251,7 +251,7 @@ internal sealed class JsonWriter
         }
 
         _writer.Write('"');
-        _writer.Write(key); // nosemgrep
+        _writer.Write(key);
         _writer.Write("\":");
         first = false;
     }
@@ -259,21 +259,21 @@ internal sealed class JsonWriter
     private void WritePid(ref bool first, ProcessInfo p)
     {
         WriteField("pid", ref first);
-        _writer.Write(p.Pid); // nosemgrep
+        _writer.Write(p.Pid);
     }
 
     private void WritePpid(ref bool first, ProcessInfo p)
     {
         WriteField("ppid", ref first);
-        _writer.Write(p.Ppid); // nosemgrep
+        _writer.Write(p.Ppid);
     }
 
     private void WriteUid(ref bool first, ProcessInfo p)
     {
         WriteField("uid", ref first);
-        if (p.Uid >= 0) // nosemgrep
+        if (p.Uid >= 0)
         {
-            _writer.Write(p.Uid); // nosemgrep
+            _writer.Write(p.Uid);
         }
         else
         {
@@ -284,33 +284,33 @@ internal sealed class JsonWriter
     private void WriteName(ref bool first, ProcessInfo p)
     {
         WriteField("name", ref first);
-        WriteString(p.Name); // nosemgrep
+        WriteString(p.Name);
     }
 
     private void WriteCommand(ref bool first, ProcessInfo p)
     {
         WriteField("cmd", ref first);
-        WriteString(p.Cmd); // nosemgrep
+        WriteString(p.Cmd);
     }
 
     private void WritePath(ref bool first, ProcessInfo p)
     {
         WriteField("path", ref first);
-        WriteString(p.Path); // nosemgrep
+        WriteString(p.Path);
     }
 
     private void WriteStartTime(ref bool first, ProcessInfo p)
     {
         WriteField("startTime", ref first);
-        WriteString(p.StartTime); // nosemgrep
+        WriteString(p.StartTime);
     }
 
     private void WriteMemory(ref bool first, ProcessInfo p)
     {
         WriteField("memory", ref first);
-        if (p.Memory >= 0) // nosemgrep
+        if (p.Memory >= 0)
         {
-            _writer.Write(p.Memory.ToString(System.Globalization.CultureInfo.InvariantCulture)); // nosemgrep
+            _writer.Write(p.Memory.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
         else
         {
@@ -321,9 +321,9 @@ internal sealed class JsonWriter
     private void WriteCpu(ref bool first, ProcessInfo p)
     {
         WriteField("cpu", ref first);
-        if (p.Cpu >= 0) // nosemgrep
+        if (p.Cpu >= 0)
         {
-            _writer.Write(p.Cpu.ToString(System.Globalization.CultureInfo.InvariantCulture)); // nosemgrep
+            _writer.Write(p.Cpu.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
         else
         {
@@ -350,7 +350,7 @@ internal sealed class JsonWriter
     private int WriteEscapedChar(string value, int i)
     {
         var c = value[i];
-        if (char.IsHighSurrogate(c) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1])) // nosemgrep
+        if (char.IsHighSurrogate(c) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
         {
             WriteSurrogatePair(c, value[i + 1]);
             return i + 2;
@@ -361,7 +361,7 @@ internal sealed class JsonWriter
 
     private void WriteSurrogatePair(char high, char low)
     {
-        var codePoint = char.ConvertToUtf32(high, low); // nosemgrep
+        var codePoint = char.ConvertToUtf32(high, low);
         if (codePoint < 0x20)
         {
             _writer.Write($"\\u{codePoint:x4}");
@@ -414,7 +414,7 @@ internal sealed class JsonWriter
         }
         else
         {
-            _writer.Write(c); // nosemgrep
+            _writer.Write(c);
         }
     }
 }
@@ -503,7 +503,7 @@ internal static class WindowsReader
                 var status = NtQuerySystemInformation(SystemProcessInformationClass, buffer, size, out var returnLength);
                 if (status >= 0)
                 {
-                    WriteEntries(writer, fields, buffer, returnLength); // nosemgrep
+                    WriteEntries(writer, fields, buffer, returnLength);
                     break;
                 }
                 if (status == STATUS_INFO_LENGTH_MISMATCH)
@@ -523,7 +523,7 @@ internal static class WindowsReader
     private static void WriteEntries(TextWriter writer, ProcessFields fields, IntPtr buffer, int returnLength)
     {
         var managedBuffer = new byte[returnLength];
-        Marshal.Copy(buffer, managedBuffer, 0, returnLength); // nosemgrep
+        Marshal.Copy(buffer, managedBuffer, 0, returnLength);
         var span = managedBuffer.AsSpan();
         var offset = 0;
         var entrySize = Unsafe.SizeOf<SystemProcessInformation>();
@@ -587,7 +587,7 @@ internal static class LinuxReader
 
             try
             {
-                WriteOne(writer, pid, dir, ctx, fields); // nosemgrep
+                WriteOne(writer, pid, dir, ctx, fields);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -640,7 +640,7 @@ internal static class LinuxReader
         if (idx >= 0)
         {
             var i = idx + "MemTotal:"u8.Length;
-            while (i < data.Length && data[i] == ' ') // nosemgrep
+            while (i < data.Length && data[i] == ' ')
             {
                 i++;
             }
@@ -657,7 +657,7 @@ internal static class LinuxReader
     {
         try
         {
-            return File.ReadAllBytes(Path.Combine(dir, file)); // nosemgrep
+            return File.ReadAllBytes(Path.Combine(dir, file));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -668,7 +668,7 @@ internal static class LinuxReader
 
     private static void WriteOne(TextWriter writer, int pid, string dir, in LinuxContext ctx, ProcessFields fields)
     {
-        var data = ReadProcessData(dir, fields); // nosemgrep
+        var data = ReadProcessData(dir, fields);
         var info = new ProcessInfo
         {
             Pid = pid,
@@ -686,7 +686,7 @@ internal static class LinuxReader
 
     private static ProcData ReadProcessData(string dir, ProcessFields fields)
     {
-        return new ProcData( // nosemgrep
+        return new ProcData(
             ReadComm(dir, fields),
             ReadPath(dir, fields),
             ReadCmd(dir, fields),
