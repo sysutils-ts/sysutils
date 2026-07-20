@@ -18,9 +18,8 @@ function setOutput(lines) {
   }
 }
 
-const nextRelease = (result || {}).nextRelease;
-if (nextRelease) {
-  setOutput(`version=${nextRelease.version}\nreleased=true\n`);
+if ((result || {}).nextRelease) {
+  setOutput("version=" + result.nextRelease.version + "\nreleased=true\n");
 } else {
   setOutput("released=false\n");
 }
