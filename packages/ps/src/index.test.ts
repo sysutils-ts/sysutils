@@ -125,6 +125,81 @@ test("toProcessRow falls back to name and uid string", () => {
   assert.strictEqual(row.startedAt, null);
 });
 
+test(
+  "SYSUTILS_PS_BACKEND=proc selects the /proc backend",
+  { skip: process.platform !== "linux" },
+  async () => {
+    process.env.SYSUTILS_PS_BACKEND = "proc";
+    try {
+      const stream = createProcessStream({ fields: ["pid", "name"] });
+      assert.strictEqual(stream.process, undefined);
+      stream.destroy();
+      const procs = await listProcesses({ fields: ["pid", "name"] });
+      assert.ok(procs.length > 0);
+    } finally {
+      delete process.env.SYSUTILS_PS_BACKEND;
+    }
+  },
+);
+
+test(
+  "an unrecognized SYSUTILS_PS_BACKEND value falls back to auto-detection",
+  { skip: process.platform !== "linux" && !getBinaryPath("dotnet") },
+  async () => {
+    process.env.SYSUTILS_PS_BACKEND = "bogus-backend";
+    try {
+      const procs = await listProcesses({ fields: ["pid", "name"] });
+      assert.ok(procs.length > 0);
+    } finally {
+      delete process.env.SYSUTILS_PS_BACKEND;
+    }
+  },
+);
+
+test(
+  "auto backend selects /proc (no spawned child) when no dotnet binary is built",
+  {
+    skip: process.platform !== "linux" || getBinaryPath("dotnet") !== undefined,
+  },
+  () => {
+    const stream = createProcessStream({ fields: ["pid", "name"] });
+    assert.strictEqual(stream.process, undefined);
+    stream.destroy();
+  },
+);
+
+test(
+  "auto backend prefers dotnet (spawned child) over /proc when both are available",
+  { skip: !getBinaryPath("dotnet") },
+  () => {
+    const stream = createProcessStream({ fields: ["pid", "name"] });
+    assert.ok(
+      stream.process,
+      "expected the dotnet backend to spawn a child process",
+    );
+    stream.destroy();
+  },
+);
+
+test(
+  "createProcessStream throws when the proc backend is explicitly requested but unavailable",
+  () => {
+    const original = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    try {
+      assert.throws(
+        () => createProcessStream({ backend: "proc" }),
+        /proc backend is only available on Linux/,
+      );
+    } finally {
+      Object.defineProperty(process, "platform", original);
+    }
+  },
+);
+
 test("createProcessStream throws for an explicit backend without a binary", (t) => {
   if (getBinaryPath("dotnet")) {
     t.skip("dotnet binary is available");

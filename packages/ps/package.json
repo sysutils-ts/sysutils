@@ -32,7 +32,9 @@
       "src/index.ts",
       "src/index.test.ts",
       "src/nodeapi.test.ts",
-      "src/benchmark.test.ts"
+      "src/benchmark.test.ts",
+      "src/proc.test.ts",
+      "src/types.test.ts"
     ],
     "dts": true,
     "sourcemap": true
