@@ -1,7 +1,9 @@
 import assert from "node:assert";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { getBinaryPath } from "./index.js";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
@@ -134,5 +136,31 @@ test(
       payload.results.some((r) => r.id === "ps-list"),
       "expected a ps-list result",
     );
+  },
+);
+
+test(
+  "benchmark CLI writes a chart SVG",
+  { skip: !getBinaryPath("dotnet") && !getBinaryPath("dotnet-nodeapi") },
+  () => {
+    const svgUrl = new URL("../tmp/bench-chart.svg", import.meta.url);
+    const result = run([
+      "--runs",
+      "1",
+      "--warmup",
+      "0",
+      "--svg",
+      fileURLToPath(svgUrl),
+    ]);
+    assert.strictEqual(result.status, 0, `expected success: ${result.stderr}`);
+    // nosemgrep
+    const svg = fs.readFileSync(svgUrl, "utf8");
+    assert.ok(svg.includes("<svg"), "expected an SVG root element");
+    assert.ok(svg.includes("@sysutils/ps benchmark"), "expected chart title");
+    assert.ok(svg.includes("Mean"), "expected Mean legend label");
+    assert.ok(svg.includes("P95"), "expected P95 legend label");
+    assert.ok(svg.includes("P99"), "expected P99 legend label");
+    const meanMatches = svg.match(/fill='#2563eb'/g) ?? [];
+    assert.ok(meanMatches.length > 1, "expected at least one Mean data bar beyond the legend swatch");
   },
 );

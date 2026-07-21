@@ -72,10 +72,9 @@ The Benchmark workflow runs on relevant pull requests and can be dispatched
 manually from `main` to publish an up-to-date SVG badge without touching this
 README:
 
-![@sysutils/ps benchmark](https://ThePlenkov.github.io/sysutils/benchmark.svg)
+![@sysutils/ps benchmark](https://sysutils-ts.github.io/sysutils/benchmark.svg)
 
 > The badge is published to the `gh-pages` branch by the `Benchmark` workflow.
-> Enable GitHub Pages from `gh-pages` for the image above to render.
 
 ## Design
 
