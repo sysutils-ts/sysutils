@@ -2,6 +2,8 @@
 
 > Cross-platform, stream-first system utilities for Node.js.
 
+[![CI](https://github.com/sysutils-ts/sysutils/actions/workflows/ci.yml/badge.svg)](https://github.com/sysutils-ts/sysutils/actions/workflows/ci.yml) [![Release](https://github.com/sysutils-ts/sysutils/actions/workflows/publish.yml/badge.svg)](https://github.com/sysutils-ts/sysutils/actions/workflows/publish.yml) [![npm @sysutils/ps](https://img.shields.io/npm/v/@sysutils/ps.svg)](https://www.npmjs.com/package/@sysutils/ps) [![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/) [![TypeScript](https://img.shields.io/badge/TypeScript-5.5%2B-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/) [![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/sysutils-ts/sysutils/tree/main/packages/ps)
+
 `@sysutils` is a monorepo of small, focused packages that turn slow, fragile,
 platform-specific chores into fast, composable, async Node.js streams.
 
