@@ -92,7 +92,7 @@ Each utility follows the same contract:
 ## Tooling
 
 - Node.js `>=24` with `npm` workspaces.
-- .NET 8 SDK (for building the `@sysutils/ps` native backends).
+- .NET 8+ SDK (for building the `@sysutils/ps` native backends).
 
 ## Read-first
 
