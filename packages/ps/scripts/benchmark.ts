@@ -452,70 +452,125 @@ ${compareNote}
 `;
 }
 
-interface SvgHeader {
-  x: number;
-  label: string;
-  align: "start" | "end";
-}
-
 function renderSvg(meta: Meta, results: Result[]): string {
-  const width = 720;
-  const rowHeight = 26;
-  const headerHeight = 86;
-  const footerHeight = 28;
-  const height = headerHeight + rowHeight * (results.length + 1) + footerHeight;
+  const width = 800;
+  const margin = { top: 80, right: 120, bottom: 48, left: 230 };
+  const chartWidth = width - margin.left - margin.right;
+  const groupHeight = 70;
+  const barHeight = 13;
+  const barGap = 5;
+  const chartHeight = results.length * groupHeight;
+  const height = margin.top + chartHeight + margin.bottom;
 
-  const header: SvgHeader[] = [
-    { x: 20, label: "Backend", align: "start" },
-    { x: 360, label: "Mean", align: "end" },
-    { x: 440, label: "P95", align: "end" },
-    { x: 520, label: "P99", align: "end" },
-    { x: 600, label: "Count", align: "end" },
+  const title = `${meta.rid} — ${meta.fields.join(',')} — ${meta.runs} runs`;
+  const subtitle = `${meta.node} / ${meta.date.slice(0, 19).replaceAll('T', ' ')}`;
+
+  const metrics: { key: 'mean' | 'p95' | 'p99'; label: string; color: string }[] = [
+    { key: 'mean', label: 'Mean', color: '#2563eb' },
+    { key: 'p95', label: 'P95', color: '#60a5fa' },
+    { key: 'p99', label: 'P99', color: '#93c5fd' },
   ];
 
-  const headerRow = header
-    .map(
-      (h) =>
-        `<text x="${h.x}" y="${headerHeight - 22}" text-anchor="${h.align}" font-size="13" font-weight="600" fill="#6b7280">${escapeXml(h.label)}</text>`,
-    )
-    .join("");
+  function formatAxis(value: number): string {
+    if (value === 0) return '0';
+    return value.toFixed(2).replace(/\.?0+$/, '');
+  }
 
-  const title = `${meta.rid} — ${meta.fields.join(",")} — ${meta.runs} runs`;
-  const subtitle = `${meta.node} / ${meta.date.slice(0, 19).replaceAll("T", " ")}`;
+  function niceCeil(value: number): number {
+    if (value <= 0) return 1;
+    const exp = Math.floor(Math.log10(value));
+    const step = 10 ** exp;
+    return Math.ceil(value / step) * step;
+  }
 
-  const rows = results
-    .map((r, i) => {
-      const y = headerHeight + rowHeight * (i + 1);
-      const bg = i % 2 === 0 ? "#f9fafb" : "#ffffff";
-      const s = r.stats;
-      const mean = r.error ? "—" : format(s!.mean);
-      const p95 = r.error ? "—" : format(s!.p95);
-      const p99 = r.error ? "—" : format(s!.p99);
-      const count = r.error ? "—" : String(r.count);
-      const errorText = r.error
-        ? ` (${escapeXml(truncate(r.error, 40))})`
-        : "";
-      const name = escapeXml(r.name) + errorText;
-      const fill = r.error ? "#dc2626" : "#111827";
-      return `<rect x="0" y="${y - rowHeight + 4}" width="${width}" height="${rowHeight}" fill="${bg}" />
-<text x="20" y="${y}" text-anchor="start" font-size="13" fill="${fill}">${name}</text>
-<text x="360" y="${y}" text-anchor="end" font-size="13" fill="${fill}">${mean}</text>
-<text x="440" y="${y}" text-anchor="end" font-size="13" fill="${fill}">${p95}</text>
-<text x="520" y="${y}" text-anchor="end" font-size="13" fill="${fill}">${p99}</text>
-<text x="600" y="${y}" text-anchor="end" font-size="13" fill="${fill}">${count}</text>`;
-    })
-    .join("\n");
+  const numeric = results.filter((r) => !r.error && r.stats);
+  const maxMs = numeric.length
+    ? Math.max(...numeric.flatMap((r) => metrics.map((m) => r.stats![m.key])))
+    : 1;
+  const xMax = niceCeil(maxMs * 1.15);
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="#ffffff" stroke="#e5e7eb" stroke-width="1" rx="6" />
-  <text x="20" y="28" font-size="16" font-weight="700" fill="#111827">@sysutils/ps benchmark</text>
-  <text x="20" y="48" font-size="12" fill="#6b7280">${escapeXml(title)}</text>
-  ${headerRow}
-  <line x1="16" y1="${headerHeight - 8}" x2="${width - 16}" y2="${headerHeight - 8}" stroke="#e5e7eb" stroke-width="1" />
-  ${rows}
-  <text x="${width - 20}" y="${height - 8}" text-anchor="end" font-size="11" fill="#9ca3af">${escapeXml(subtitle)}</text>
+  function xScale(ms: number): number {
+    return margin.left + (ms / xMax) * chartWidth;
+  }
+
+  const tickCount = 5;
+  const tickStep = xMax / (tickCount - 1);
+
+  let svg = `<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'>
+  <rect width='${width}' height='${height}' fill='#ffffff' stroke='#e5e7eb' stroke-width='1' rx='8' />
+  <text x='20' y='28' font-size='18' font-weight='700' fill='#111827'>@sysutils/ps benchmark</text>
+  <text x='20' y='50' font-size='12' fill='#6b7280'>${escapeXml(title)}</text>`;
+
+  const legendItemWidth = 74;
+  const legendRight = width - 20;
+  const legendY = 40;
+  for (let i = 0; i < metrics.length; i++) {
+    const m = metrics[i];
+    const x = legendRight - (metrics.length - i) * legendItemWidth;
+    svg += `
+  <rect x='${x}' y='${legendY}' width='12' height='12' fill='${m.color}' rx='2' />
+  <text x='${x + 18}' y='${legendY + 10}' font-size='12' fill='#4b5563'>${m.label}</text>`;
+  }
+
+  for (let i = 0; i < tickCount; i++) {
+    const value = i * tickStep;
+    const x = xScale(value);
+    svg += `
+  <line x1='${x}' y1='${margin.top}' x2='${x}' y2='${margin.top + chartHeight}' stroke='#f3f4f6' stroke-width='1' />`;
+  }
+
+  svg += `
+  <line x1='${margin.left}' y1='${margin.top}' x2='${margin.left}' y2='${margin.top + chartHeight}' stroke='#d1d5db' stroke-width='1' />
+  <line x1='${margin.left}' y1='${margin.top + chartHeight}' x2='${margin.left + chartWidth}' y2='${margin.top + chartHeight}' stroke='#d1d5db' stroke-width='1' />`;
+
+  for (let i = 0; i < tickCount; i++) {
+    const value = i * tickStep;
+    const x = xScale(value);
+    svg += `
+  <text x='${x}' y='${margin.top + chartHeight + 18}' text-anchor='middle' font-size='11' fill='#9ca3af'>${formatAxis(value)}</text>`;
+  }
+
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const y = margin.top + i * groupHeight;
+    const labelY = y + groupHeight / 2 + 4;
+    const name = escapeXml(r.name);
+
+    svg += `
+  <text x='${margin.left - 12}' y='${labelY}' text-anchor='end' font-size='12' fill='${r.error ? '#dc2626' : '#111827'}'>${name}</text>`;
+
+    if (r.error) {
+      svg += `
+  <text x='${margin.left + 8}' y='${labelY}' font-size='12' fill='#dc2626'>${escapeXml(truncate(r.error, 50))}</text>`;
+      continue;
+    }
+
+    const count = r.count ?? 'n/a';
+    svg += `
+  <text x='${margin.left - 12}' y='${labelY + 14}' text-anchor='end' font-size='10' fill='#9ca3af'>(${count})</text>`;
+
+    const s = r.stats!;
+    const barsTotal = metrics.length * barHeight + (metrics.length - 1) * barGap;
+    const barTop = y + (groupHeight - barsTotal) / 2;
+
+    for (let j = 0; j < metrics.length; j++) {
+      const m = metrics[j];
+      const value = s[m.key];
+      const barWidth = (value / xMax) * chartWidth;
+      const by = barTop + j * (barHeight + barGap);
+      const labelX = margin.left + barWidth + 6;
+      svg += `
+  <rect x='${margin.left}' y='${by}' width='${barWidth}' height='${barHeight}' fill='${m.color}' rx='3' />
+  <text x='${labelX}' y='${by + barHeight - 2}' font-size='11' fill='#374151'>${format(value)}</text>`;
+    }
+  }
+
+  svg += `
+  <text x='${width - 20}' y='${height - 16}' text-anchor='end' font-size='11' fill='#9ca3af'>${escapeXml(subtitle)}</text>
 </svg>`;
+
+  return svg;
 }
 
 function escapeHtml(s: unknown): string {
