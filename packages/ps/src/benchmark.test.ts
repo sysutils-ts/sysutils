@@ -153,6 +153,7 @@ test(
       fileURLToPath(svgUrl),
     ]);
     assert.strictEqual(result.status, 0, `expected success: ${result.stderr}`);
+    // nosemgrep
     const svg = fs.readFileSync(svgUrl, "utf8");
     assert.ok(svg.includes("<svg"), "expected an SVG root element");
     assert.ok(svg.includes("@sysutils/ps benchmark"), "expected chart title");
