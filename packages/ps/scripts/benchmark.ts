@@ -454,16 +454,6 @@ ${compareNote}
 
 function renderSvg(meta: Meta, results: Result[]): string {
   const width = 800;
-
-  if (results.length === 0) {
-    // nosemgrep
-    return `<?xml version='1.0' encoding='UTF-8'?>
-<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='200' viewBox='0 0 ${width} 200'>
-  <rect width='${width}' height='200' fill='#ffffff' stroke='#e5e7eb' stroke-width='1' rx='8' />
-  <text x='${width / 2}' y='100' text-anchor='middle' font-size='14' fill='#6b7280'>No results to display</text>
-</svg>`;
-  }
-
   const margin = { top: 80, right: 120, bottom: 48, left: 230 };
   const chartWidth = width - margin.left - margin.right;
   const groupHeight = 70;

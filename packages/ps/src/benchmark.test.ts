@@ -160,6 +160,7 @@ test(
     assert.ok(svg.includes("Mean"), "expected Mean legend label");
     assert.ok(svg.includes("P95"), "expected P95 legend label");
     assert.ok(svg.includes("P99"), "expected P99 legend label");
-    assert.ok(svg.includes("fill='#2563eb'"), "expected at least one Mean bar");
+    const meanMatches = svg.match(/fill='#2563eb'/g) ?? [];
+    assert.ok(meanMatches.length > 1, "expected at least one Mean data bar beyond the legend swatch");
   },
 );
