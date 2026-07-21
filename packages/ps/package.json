@@ -25,6 +25,28 @@
     "url": "https://github.com/sysutils-ts/sysutils/issues"
   },
   "homepage": "https://github.com/sysutils-ts/sysutils/tree/main/packages/ps#readme",
+  "keywords": [
+    "sysutils",
+    "ps",
+    "process",
+    "processes",
+    "process-list",
+    "tasklist",
+    "proc",
+    "stream",
+    "streaming",
+    "native",
+    "cross-platform",
+    "windows",
+    "linux",
+    "macos",
+    "x64",
+    "arm64",
+    "node-api",
+    "dotnet",
+    "system",
+    "utility"
+  ],
   "tsdown": {
     "entry": [
       "src/index.ts",

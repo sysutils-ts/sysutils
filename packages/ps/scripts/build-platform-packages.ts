@@ -42,6 +42,16 @@ function writePackageJson(
       access: "public",
       registry: "https://registry.npmjs.org/",
     },
+    keywords: [
+      "sysutils",
+      "ps",
+      "process",
+      "process-list",
+      "native",
+      "binary",
+      target.platform,
+      target.arch,
+    ],
   };
   fs.writeFileSync(
     path.join(packageDir, "package.json"),
