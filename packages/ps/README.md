@@ -213,7 +213,7 @@ const procs = await listProcesses({ backend: "proc" });
 | Full `ps-list` field set on Linux                   | yes                  | yes                      | yes                    |
 | `uid` / `user` / `startTime` on Linux/macOS/Windows | yes                  | yes                      | Linux only             |
 | `cmd` / `cpu` / `memory` on Linux                   | yes                  | yes                      | yes                    |
-| `cmd` / `cpu` / `memory` on Windows/macOS           | no                   | no                       | no                     |
+| `cmd` / `cpu` / `memory` on Windows/macOS           | no                   | no                       | macOS only             |
 | `path` on Linux/macOS                               | yes                  | yes                      | no                     |
 | In-process / no spawn                               | no                   | yes                      | no                     |
 | Runtime dependency                                  | none (AOT binary)    | .NET 10 runtime          | `ps` binary on Unix    |
@@ -232,35 +232,14 @@ Measured on a Surface Pro X (Windows 11 ARM64 + WSL2 Ubuntu ARM64, Node.js
 The in-process backend is roughly **4–35× faster** than the CLI spawn path and
 `ps-list` on Linux, and it supports Windows ARM64 where `ps-list` does not.
 
-## Building from source
+## Contributing
 
-The repository uses `npm` workspaces:
-
-```bash
-npm install
-npm run typecheck
-npm run build
-npm run test
-npm run lint
-```
-
-`npm run build` only bundles the TypeScript entrypoint. To also build the
-native CLI and in-process backends for the current platform, run:
-
-```bash
-npm run build:cli       # native AOT CLI binary
-npm run build:nodeapi   # node-api-dotnet assembly
-npm run build           # TypeScript bundle
-```
-
-To cross-compile all supported RIDs (requires .NET 10 SDK):
-
-```bash
-npm run build:all
-```
+This package is developed as part of the `@sysutils` monorepo. See the
+[Contributing guide](https://github.com/sysutils-ts/sysutils/blob/main/CONTRIBUTING.md)
+for build, test, and development instructions.
 
 ## See also
 
 - `native/cli/` — .NET AOT CLI backend source.
 - `native/nodeapi/` — in-process `node-api-dotnet` backend source.
-- [ADR 0002: In-process `node-api-dotnet` backend](../../docs/adr/0002-nodeapi-dotnet-for-supervisor.md).
+- [ADR 0002: In-process `node-api-dotnet` backend](https://github.com/sysutils-ts/sysutils/blob/main/docs/adr/0002-nodeapi-dotnet-for-supervisor.md).
