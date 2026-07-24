@@ -1,0 +1,66 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "nxCloudId": "6a6396f0696d8abbfb37debf",
+  "analytics": false,
+  "defaultBase": "main",
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "sharedGlobals": [
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/package-lock.json",
+      "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/tsconfig.json",
+      "{workspaceRoot}/tsconfig.base.json"
+    ],
+    "source": [
+      "default",
+      "!{projectRoot}/bin/**",
+      "!{projectRoot}/dist/**",
+      "!{projectRoot}/tmp/**"
+    ],
+    "production": [
+      "source",
+      "!{projectRoot}/**/*.test.*",
+      "!{projectRoot}/**/*.spec.*",
+      "!{projectRoot}/**/*.md"
+    ]
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["source", "^source"],
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    },
+    "build:cli": {
+      "inputs": ["production"],
+      "outputs": [
+        "{projectRoot}/bin/publish",
+        "{projectRoot}/bin/win32",
+        "{projectRoot}/bin/linux",
+        "{projectRoot}/bin/darwin"
+      ],
+      "cache": false
+    },
+    "build:nodeapi": {
+      "inputs": ["production"],
+      "outputs": [
+        "{projectRoot}/bin/nodeapi"
+      ],
+      "cache": false
+    },
+    "typecheck": {
+      "inputs": ["source", "^source"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["build", "build:cli", "build:nodeapi"],
+      "inputs": ["source", "^source"],
+      "cache": false
+    },
+    "test:dotnet": {
+      "inputs": ["production"],
+      "cache": false
+    }
+  }
+}

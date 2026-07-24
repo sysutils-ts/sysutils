@@ -12,9 +12,13 @@ concurrency:
 
 jobs:
   node:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -26,17 +30,25 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
+      - run: dotnet --info
       - run: npm ci --ignore-scripts
-      - run: npm run build:cli -w packages/ps
-      - run: npm run build:nodeapi -w packages/ps
-      - run: npm run build -w packages/ps
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm install --ignore-scripts ps-list@9.0.0 --no-save -w packages/ps
-      - run: npm test
+      - name: Remove prebuilt native platform packages so CI binaries are tested
+        run: node -e "const fs=require('fs'),path=require('path');['node_modules/@sysutils','packages/ps/node_modules/@sysutils'].forEach(d=>{const p=path.resolve(d);if(fs.existsSync(p))fs.rmSync(p,{recursive:true,force:true});});"
+        shell: bash
+      - run: node node_modules/nx/dist/bin/nx.js run-many -t typecheck -p @sysutils/ps
+        env:
+          NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+      - run: node node_modules/nx/dist/bin/nx.js run-many -t test -p @sysutils/ps
         env:
           SYSUTILS_PS_TEST_NODEAPI: 1
-      - run: npm run test:dotnet -w packages/ps
+          NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+      - run: node node_modules/nx/dist/bin/nx.js run-many -t test:dotnet -p @sysutils/ps
+        env:
+          NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+      - run: npm run typecheck
+        if: matrix.os == 'ubuntu-latest'
+      - run: npm run lint
+        if: matrix.os == 'ubuntu-latest'
 
   changes:
     if: github.event_name == 'pull_request'
@@ -77,6 +89,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
-      - run: npm ci --ignore-scripts
+      - run: dotnet --info
+      - run: npm ci --ignore-scripts --no-optional
       - run: node packages/ps/scripts/build-native-all.ts cli ${{ matrix.rid }}
       - run: node packages/ps/scripts/build-native-all.ts nodeapi ${{ matrix.rid }}

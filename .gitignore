@@ -44,3 +44,8 @@ Thumbs.db
 # Temporary evidence or debug artifacts
 .evidence/
 .codacy/
+packages/ps/tmp/
+
+
+
+.nx/
