@@ -1,6 +1,8 @@
 name: Benchmark
 
 on:
+  schedule:
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       runs:
@@ -23,15 +25,13 @@ on:
         required: true
         default: true
         type: boolean
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/benchmark.yml'
-      - 'packages/ps/scripts/benchmark.ts'
-      - 'packages/ps/package.json'
-      - 'packages/ps/src/**/*.ts'
-      - 'packages/ps/binaries.json'
-      - 'packages/ps/native/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   BENCHMARK_RUNS: ${{ inputs.runs || '20' }}
@@ -57,6 +57,7 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: lts/*
+          cache: npm
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
@@ -104,7 +105,7 @@ jobs:
   publish-badge:
     name: Publish benchmark badge
     needs: benchmark
-    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

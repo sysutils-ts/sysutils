@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   node:
     runs-on: ubuntu-latest
@@ -14,6 +21,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
+          cache: npm
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
@@ -33,13 +41,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
+        rid: ${{ github.event_name == 'pull_request' && fromJSON('["linux-x64","linux-arm64"]') || fromJSON('["win-x64","win-arm64","linux-x64","linux-arm64","osx-x64","osx-arm64"]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
+          cache: npm
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
