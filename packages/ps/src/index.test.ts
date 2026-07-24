@@ -81,11 +81,31 @@ test("dotnet backend exposes memory only when requested", async (t) => {
   for (const p of procs) {
     assert.strictEqual(typeof p.pid, "number");
     assert.strictEqual(typeof p.name, "string");
+    // Memory can be null when it cannot be collected for a process (e.g. the
+    // process exited mid-scan, or on macOS when proc_pidinfo is denied for
+    // another user's process without root). Only require non-negative numbers.
     assert.ok(
-      typeof p.memory === "number" && p.memory >= 0,
-      `memory should be a non-negative number, got ${p.memory}`,
+      p.memory === null || (typeof p.memory === "number" && p.memory >= 0),
+      `memory should be null or a non-negative number, got ${p.memory}`,
     );
   }
+  // The field is still meaningfully verified: at least one process must report
+  // a numeric, non-negative memory value.
+  assert.ok(
+    procs.some((p) => typeof p.memory === "number" && p.memory >= 0),
+    "at least one process should report a numeric memory value",
+  );
+
+  // "only when requested": memory must be absent when it is not requested.
+  const withoutMemory = await listProcesses({
+    backend: "dotnet",
+    fields: ["pid", "name"],
+  });
+  assert.ok(withoutMemory.length > 0);
+  assert.ok(
+    withoutMemory.every((p) => p.memory === undefined),
+    "memory should be absent when not requested",
+  );
 });
 
 test(

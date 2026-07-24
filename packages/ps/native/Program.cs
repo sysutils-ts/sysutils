@@ -483,7 +483,9 @@ internal static class WindowsReader
     {
         var memStatus = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
         if (!GlobalMemoryStatusEx(ref memStatus))
+        {
             return -1;
+        }
         return (double)memStatus.ullTotalPhys;
     }
 
@@ -608,6 +610,11 @@ internal static class WindowsReader
             startTime = DateTime.FromFileTimeUtc(p.CreateTime).ToString("o");
         }
 
+        // memory is a percentage of total physical RAM. Note the metric differs
+        // per platform: Windows uses the private working set
+        // (WorkingSetPrivateSize, excludes shared pages) while macOS and Linux
+        // use resident set size (RSS, includes shared pages). Values are
+        // therefore only loosely comparable across platforms.
         var memory = -1.0;
         if ((fields & ProcessFields.Memory) != 0 && totalMemory > 0)
         {
@@ -1425,9 +1432,7 @@ internal static class MacReader
         {
             if (sysctlbyname("hw.memsize", memPtr, ref size, IntPtr.Zero, IntPtr.Zero) == 0)
             {
-                var bytes = new byte[sizeof(ulong)];
-                Marshal.Copy(memPtr, bytes, 0, sizeof(ulong));
-                return (double)BitConverter.ToUInt64(bytes, 0);
+                return (double)Marshal.ReadInt64(memPtr);
             }
         }
         finally
@@ -1467,17 +1472,29 @@ internal static class MacReader
                 pids = NativeHelpers.GrowBuffer(pids, ref size, MaxBufferSize, "PID");
             }
 
-            var info = Marshal.AllocHGlobal(ProcBsdInfoSize);
-            var pathBuf = Marshal.AllocHGlobal(4096);
-            var taskInfo = (fields & ProcessFields.Memory) != 0 ? Marshal.AllocHGlobal(ProcTaskInfoSize) : IntPtr.Zero;
+            var info = IntPtr.Zero;
+            var pathBuf = IntPtr.Zero;
+            var taskInfo = IntPtr.Zero;
             try
             {
+                info = Marshal.AllocHGlobal(ProcBsdInfoSize);
+                pathBuf = Marshal.AllocHGlobal(4096);
+                if ((fields & ProcessFields.Memory) != 0)
+                {
+                    taskInfo = Marshal.AllocHGlobal(ProcTaskInfoSize);
+                }
                 WritePids(writer, fields, pids, used, info, pathBuf, taskInfo, totalMemory);
             }
             finally
             {
-                Marshal.FreeHGlobal(info);
-                Marshal.FreeHGlobal(pathBuf);
+                if (info != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(info);
+                }
+                if (pathBuf != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(pathBuf);
+                }
                 if (taskInfo != IntPtr.Zero)
                 {
                     Marshal.FreeHGlobal(taskInfo);
@@ -1526,28 +1543,10 @@ internal static class MacReader
         var startUsec = (ulong)Marshal.ReadInt64(info, 128);
         var (name, path) = GetNameAndPath(fields, pid, pathBuf);
 
-        string? startTime = null;
-        if ((fields & ProcessFields.StartTime) != 0 && startSec > 0)
-        {
-            var dt = DateTimeOffset.FromUnixTimeSeconds((long)startSec).AddTicks((long)startUsec * 10);
-            startTime = dt.ToString("o");
-        }
-
         string? user = null;
         if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0)
         {
             user = GetUserName(uid);
-        }
-
-        var memory = -1.0;
-        if ((fields & ProcessFields.Memory) != 0 && taskInfo != IntPtr.Zero && totalMemory > 0)
-        {
-            var len = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, taskInfo, ProcTaskInfoSize);
-            if (len == ProcTaskInfoSize)
-            {
-                var task = Marshal.PtrToStructure<proc_taskinfo>(taskInfo);
-                memory = (double)task.pti_resident_size / totalMemory * 100.0;
-            }
         }
 
         NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
@@ -1556,12 +1555,40 @@ internal static class MacReader
             Ppid = (int)ppid,
             Name = name ?? string.Empty,
             Path = path,
-            StartTime = startTime,
+            StartTime = ComputeStartTime(fields, startSec, startUsec),
             Uid = (int)uid,
             User = user,
-            Memory = memory,
+            Memory = ComputeMemory(fields, pid, taskInfo, totalMemory),
             Cpu = -1,
         });
+    }
+
+    private static string? ComputeStartTime(ProcessFields fields, ulong startSec, ulong startUsec)
+    {
+        if ((fields & ProcessFields.StartTime) == 0 || startSec == 0)
+        {
+            return null;
+        }
+
+        var dt = DateTimeOffset.FromUnixTimeSeconds((long)startSec).AddTicks((long)startUsec * 10);
+        return dt.ToString("o");
+    }
+
+    private static double ComputeMemory(ProcessFields fields, int pid, IntPtr taskInfo, double totalMemory)
+    {
+        if ((fields & ProcessFields.Memory) == 0 || taskInfo == IntPtr.Zero || totalMemory <= 0)
+        {
+            return -1.0;
+        }
+
+        var len = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, taskInfo, ProcTaskInfoSize);
+        if (len != ProcTaskInfoSize)
+        {
+            return -1.0;
+        }
+
+        var task = Marshal.PtrToStructure<proc_taskinfo>(taskInfo);
+        return (double)task.pti_resident_size / totalMemory * 100.0;
     }
 
     private static string? GetUserName(uint uid)
