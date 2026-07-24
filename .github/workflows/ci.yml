@@ -10,14 +10,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-permissions:
-  contents: read
-
 jobs:
   node:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
@@ -53,6 +54,7 @@ jobs:
               - 'packages/ps/native/**'
               - 'packages/ps/scripts/build-native-all.ts'
               - 'packages/ps/scripts/build-native-all-base.ts'
+              - 'packages/ps/package.json'
 
   native:
     needs: changes
@@ -62,8 +64,12 @@ jobs:
       matrix:
         rid: ${{ github.event_name == 'pull_request' && needs.changes.outputs.native != 'true' && fromJSON('["linux-x64","linux-arm64"]') || fromJSON('["win-x64","win-arm64","linux-x64","linux-arm64","osx-x64","osx-arm64"]') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
