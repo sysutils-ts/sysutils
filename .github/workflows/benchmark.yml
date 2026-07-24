@@ -37,7 +37,7 @@ env:
   BENCHMARK_RUNS: ${{ inputs.runs || '20' }}
   BENCHMARK_WARMUP: ${{ inputs.warmup || '2' }}
   BENCHMARK_FIELDS: ${{ inputs.fields || 'pid,ppid,name' }}
-  SYSUTILS_PS_BENCHMARK_COMPARE: ${{ inputs.compare-ps-list && '1' || '0' }}
+  SYSUTILS_PS_BENCHMARK_COMPARE: ${{ (github.event_name != 'workflow_dispatch' || inputs.compare-ps-list) && '1' || '0' }}
 
 jobs:
   benchmark:
