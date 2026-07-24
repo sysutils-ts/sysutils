@@ -30,6 +30,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
+      - run: dotnet --info
       - run: npm ci --ignore-scripts
       - name: Remove prebuilt native platform packages so CI binaries are tested
         run: node -e "const fs=require('fs'),path=require('path');['node_modules/@sysutils','packages/ps/node_modules/@sysutils'].forEach(d=>{const p=path.resolve(d);if(fs.existsSync(p))fs.rmSync(p,{recursive:true,force:true});});"
@@ -88,6 +89,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
+      - run: dotnet --info
       - run: npm ci --ignore-scripts --no-optional
       - run: node packages/ps/scripts/build-native-all.ts cli ${{ matrix.rid }}
       - run: node packages/ps/scripts/build-native-all.ts nodeapi ${{ matrix.rid }}
