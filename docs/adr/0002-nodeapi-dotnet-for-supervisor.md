@@ -15,7 +15,7 @@ underlying enumeration is fast.
 [`node-api-dotnet`](https://www.npmjs.com/package/node-api-dotnet) lets a .NET
 assembly be loaded into the Node.js process and called directly. The assembly is
 built as a managed DLL (no AOT native addon) and is loaded by the
-`node-api-dotnet/net8.0` entry point. This keeps the implementation in a single
+`node-api-dotnet/net10.0` entry point. This keeps the implementation in a single
 shared C# file while removing spawn overhead.
 
 ## Decision
@@ -78,7 +78,7 @@ fields are `null` when not available.
 
 ### Build & packaging
 
-- Target `net8.0`.
+- Target `net10.0`.
 - Reference `Microsoft.JavaScript.NodeApi` and
   `Microsoft.JavaScript.NodeApi.Generator`.
 - `dotnet publish -r <RID>` in `packages/ps/native/nodeapi` outputs
@@ -101,7 +101,7 @@ fields are `null` when not available.
 
 ### Cons
 
-- Requires the .NET 8 runtime to be installed on the target system.
+- Requires the .NET 10 runtime to be installed on the target system.
 - `node-api-dotnet` is pre-1.0; API churn possible.
 - `node-api-dotnet` 0.9.21 has an open Node-API shutdown bug on Node.js >=
   24.14.0 that can crash or hang the process on exit, so the in-process backend
