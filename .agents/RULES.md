@@ -8,7 +8,7 @@ tracked by git and must be read by any agent before touching the related area.
 | `AGENTS.md`            | repository-wide agent contract              | human         |
 | `.agents/RULES.md`     | this index                                  | human         |
 | `CONTRIBUTING.md`      | contributor setup, build, and test workflow | human         |
-| `packages/*/README.md` | package-specific API and build notes        | package owner |
+| `packages/*/README.md` | package-specific API and usage notes        | package owner |
 | `docs/adr/*.md`        | architecture decisions                      | team          |
 
 ## Repository-specific skills
