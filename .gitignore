@@ -44,3 +44,10 @@ Thumbs.db
 # Temporary evidence or debug artifacts
 .evidence/
 .codacy/
+packages/ps/tmp/
+
+
+
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs

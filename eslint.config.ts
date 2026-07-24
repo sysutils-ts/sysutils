@@ -8,6 +8,7 @@ export default tseslint.config(
       "**/target/",
       "**/bin/",
       "**/obj/",
+      "**/.nx/",
       "**/*.cs",
       "**/*.rs",
     ],
