@@ -1,3 +1,15 @@
+# [1.3.0](https://github.com/sysutils-ts/sysutils/compare/v1.2.1...v1.3.0) (2026-07-24)
+
+
+### Bug Fixes
+
+* **ps:** correct benchmark badge URL and render a grouped bar chart ([#28](https://github.com/sysutils-ts/sysutils/issues/28)) ([b375d67](https://github.com/sysutils-ts/sysutils/commit/b375d67cca684c981554443927300beb32b174a9))
+
+
+### Features
+
+* **ps:** target .NET 10 ([#30](https://github.com/sysutils-ts/sysutils/issues/30)) ([61ec032](https://github.com/sysutils-ts/sysutils/commit/61ec0320fefaa05b8a586e32bcd7f05103f123ba))
+
 ## [1.2.1](https://github.com/sysutils-ts/sysutils/compare/v1.2.0...v1.2.1) (2026-07-20)
 
 
