@@ -216,7 +216,7 @@ const procs = await listProcesses({ backend: "proc" });
 | `cmd` / `cpu` / `memory` on Windows/macOS           | no                   | no                       | no                     |
 | `path` on Linux/macOS                               | yes                  | yes                      | no                     |
 | In-process / no spawn                               | no                   | yes                      | no                     |
-| Runtime dependency                                  | none (AOT binary)    | .NET 8 runtime           | `ps` binary on Unix    |
+| Runtime dependency                                  | none (AOT binary)    | .NET 10 runtime          | `ps` binary on Unix    |
 
 ## Benchmarks
 
@@ -253,7 +253,7 @@ npm run build:nodeapi   # node-api-dotnet assembly
 npm run build           # TypeScript bundle
 ```
 
-To cross-compile all supported RIDs (requires .NET 8 SDK):
+To cross-compile all supported RIDs (requires .NET 10 SDK):
 
 ```bash
 npm run build:all

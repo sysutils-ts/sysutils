@@ -59,7 +59,7 @@ function readBinariesMap(): BinariesMap | undefined {
 
 function nodeApiDotNetAvailable(): boolean {
   try {
-    require.resolve("node-api-dotnet/net8.0");
+    require.resolve("node-api-dotnet/net10.0");
     return true;
   } catch {
     return false;
@@ -321,7 +321,7 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
 
 function loadDotnetNodeapi(binaryPath: string): void {
   if (cachedDotnetAddon?.path === binaryPath) return;
-  const dotnet = require("node-api-dotnet/net8.0") as {
+  const dotnet = require("node-api-dotnet/net10.0") as {
     require: (path: string) => {
       PsModule: { listProcesses: (fields: string) => string };
     };
