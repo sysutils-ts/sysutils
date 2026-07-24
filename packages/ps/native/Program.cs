@@ -455,7 +455,7 @@ internal static class WindowsReader
     private const int MaxBufferSize = 128 * 1024 * 1024;
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct MEMORYSTATUSEX
+    private struct MEMORYSTATUSEX : IEquatable<MEMORYSTATUSEX>
     {
         public uint dwLength;
         public uint dwMemoryLoad;
@@ -466,6 +466,34 @@ internal static class WindowsReader
         public ulong ullTotalVirtual;
         public ulong ullAvailVirtual;
         public ulong ullAvailExtendedVirtual;
+
+        public bool Equals(MEMORYSTATUSEX other) =>
+            dwLength == other.dwLength &&
+            dwMemoryLoad == other.dwMemoryLoad &&
+            ullTotalPhys == other.ullTotalPhys &&
+            ullAvailPhys == other.ullAvailPhys &&
+            ullTotalPageFile == other.ullTotalPageFile &&
+            ullAvailPageFile == other.ullAvailPageFile &&
+            ullTotalVirtual == other.ullTotalVirtual &&
+            ullAvailVirtual == other.ullAvailVirtual &&
+            ullAvailExtendedVirtual == other.ullAvailExtendedVirtual;
+
+        public override bool Equals(object? obj) => obj is MEMORYSTATUSEX other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+            hash.Add(dwLength);
+            hash.Add(dwMemoryLoad);
+            hash.Add(ullTotalPhys);
+            hash.Add(ullAvailPhys);
+            hash.Add(ullTotalPageFile);
+            hash.Add(ullAvailPageFile);
+            hash.Add(ullTotalVirtual);
+            hash.Add(ullAvailVirtual);
+            hash.Add(ullAvailExtendedVirtual);
+            return hash.ToHashCode();
+        }
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -1398,10 +1426,18 @@ internal static class MacReader
     private static readonly int ProcTaskInfoSize = Marshal.SizeOf<proc_taskinfo>();
 
     [StructLayout(LayoutKind.Explicit, Size = 96)]
-    private struct proc_taskinfo
+    private struct proc_taskinfo : IEquatable<proc_taskinfo>
     {
         [FieldOffset(0)] public ulong pti_virtual_size;
         [FieldOffset(8)] public ulong pti_resident_size;
+
+        public bool Equals(proc_taskinfo other) =>
+            pti_virtual_size == other.pti_virtual_size &&
+            pti_resident_size == other.pti_resident_size;
+
+        public override bool Equals(object? obj) => obj is proc_taskinfo other && Equals(other);
+
+        public override int GetHashCode() => HashCode.Combine(pti_virtual_size, pti_resident_size);
     }
 
     [DllImport("libSystem.dylib", SetLastError = true)]
