@@ -39,16 +39,24 @@ jobs:
 
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       native: ${{ steps.filter.outputs.native }}
     steps:
       - uses: actions/checkout@v7
+        if: github.event_name == 'push'
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@9d7afb8d214ad99e78fbd4247752c4caed2b6e4c # v4.0.0
         id: filter
         with:
           filters: |
             native:
               - 'packages/ps/native/**'
+              - 'packages/ps/scripts/build-native-all.ts'
+              - 'packages/ps/scripts/build-native-all-base.ts'
 
   native:
     needs: changes
