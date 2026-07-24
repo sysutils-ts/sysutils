@@ -30,16 +30,18 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
-      - run: npm ci --ignore-scripts --no-optional
-      - run: npm install --ignore-scripts node-api-dotnet@0.9.21 --no-save -w packages/ps
-      - run: npx nx run-many -t typecheck -p @sysutils/ps
+      - run: npm ci --ignore-scripts
+      - name: Remove prebuilt native platform packages so CI binaries are tested
+        run: node -e "const fs=require('fs'),path=require('path');['node_modules/@sysutils','packages/ps/node_modules/@sysutils'].forEach(d=>{const p=path.resolve(d);if(fs.existsSync(p))fs.rmSync(p,{recursive:true,force:true});});"
+        shell: bash
+      - run: node node_modules/nx/dist/bin/nx.js run-many -t typecheck -p @sysutils/ps
         env:
           NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-      - run: npx nx run-many -t test -p @sysutils/ps
+      - run: node node_modules/nx/dist/bin/nx.js run-many -t test -p @sysutils/ps
         env:
           SYSUTILS_PS_TEST_NODEAPI: 1
           NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-      - run: npx nx run-many -t test:dotnet -p @sysutils/ps
+      - run: node node_modules/nx/dist/bin/nx.js run-many -t test:dotnet -p @sysutils/ps
         env:
           NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
       - run: npm run lint
