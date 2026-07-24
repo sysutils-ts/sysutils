@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
@@ -38,6 +40,7 @@ jobs:
       - run: npm run test:dotnet -w packages/ps
 
   changes:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,10 +48,6 @@ jobs:
     outputs:
       native: ${{ steps.filter.outputs.native }}
     steps:
-      - uses: actions/checkout@v7
-        if: github.event_name == 'push'
-        with:
-          fetch-depth: 0
       - uses: dorny/paths-filter@9d7afb8d214ad99e78fbd4247752c4caed2b6e4c # v4.0.0
         id: filter
         with:
@@ -60,6 +59,7 @@ jobs:
 
   native:
     needs: changes
+    if: ${{ !cancelled() && (needs.changes.result == 'success' || needs.changes.result == 'skipped') }}
     strategy:
       fail-fast: false
       matrix:
@@ -67,6 +67,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: lts/*
