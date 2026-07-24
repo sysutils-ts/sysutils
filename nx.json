@@ -9,7 +9,8 @@
       "{workspaceRoot}/package.json",
       "{workspaceRoot}/package-lock.json",
       "{workspaceRoot}/nx.json",
-      "{workspaceRoot}/tsconfig.json"
+      "{workspaceRoot}/tsconfig.json",
+      "{workspaceRoot}/tsconfig.base.json"
     ],
     "source": [
       "default",
@@ -34,6 +35,7 @@
     "build:cli": {
       "inputs": ["production"],
       "outputs": [
+        "{projectRoot}/bin/publish",
         "{projectRoot}/bin/win32",
         "{projectRoot}/bin/linux",
         "{projectRoot}/bin/darwin"
@@ -42,7 +44,9 @@
     },
     "build:nodeapi": {
       "inputs": ["production"],
-      "outputs": ["{projectRoot}/bin/nodeapi"],
+      "outputs": [
+        "{projectRoot}/bin/nodeapi"
+      ],
       "cache": false
     },
     "typecheck": {
