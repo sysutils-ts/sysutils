@@ -10,12 +10,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-permissions:
-  contents: read
-
 jobs:
   node:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,6 +59,8 @@ jobs:
   native:
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result == 'success' || needs.changes.result == 'skipped') }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
