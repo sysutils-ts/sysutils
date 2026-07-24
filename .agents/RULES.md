@@ -3,12 +3,13 @@
 This repository uses the `.agents/` framework. The files below are intentionally
 tracked by git and must be read by any agent before touching the related area.
 
-| file | scope | owned by |
-|---|---|---|
-| `AGENTS.md` | repository-wide agent contract | human |
-| `.agents/RULES.md` | this index | human |
-| `packages/*/README.md` | package-specific API and build notes | package owner |
-| `docs/adr/*.md` | architecture decisions | team |
+| file                   | scope                                       | owned by      |
+| ---------------------- | ------------------------------------------- | ------------- |
+| `AGENTS.md`            | repository-wide agent contract              | human         |
+| `.agents/RULES.md`     | this index                                  | human         |
+| `CONTRIBUTING.md`      | contributor setup, build, and test workflow | human         |
+| `packages/*/README.md` | package-specific API and build notes        | package owner |
+| `docs/adr/*.md`        | architecture decisions                      | team          |
 
 ## Repository-specific skills
 

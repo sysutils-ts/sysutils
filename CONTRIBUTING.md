@@ -10,24 +10,20 @@ This monorepo uses `npm` workspaces and requires Node.js `>=24`.
 ```bash
 npm install
 npm run typecheck
-npm run build
+npm run build:cli -w packages/ps       # native AOT CLI binary
+npm run build:nodeapi -w packages/ps   # node-api-dotnet assembly
+npm run build -w packages/ps           # TypeScript bundle
 npm run test
 npm run lint
 ```
 
-`npm run build` bundles the TypeScript entrypoints. To build the `@sysutils/ps`
-native backends for the current platform:
-
-```bash
-npm run build:cli       # native AOT CLI binary
-npm run build:nodeapi   # node-api-dotnet assembly
-npm run build           # TypeScript bundle
-```
+> The `build:cli` and `build:nodeapi` steps require the .NET 10 SDK and can be
+> skipped if you only need the pure-JS `/proc` backend on Linux.
 
 To cross-compile all supported RIDs (requires .NET 10 SDK):
 
 ```bash
-npm run build:all
+npm run build:all -w packages/ps
 ```
 
 ## Native source
