@@ -44,7 +44,10 @@ jobs:
       - run: node node_modules/nx/dist/bin/nx.js run-many -t test:dotnet -p @sysutils/ps
         env:
           NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+      - run: npm run typecheck
+        if: matrix.os == 'ubuntu-latest'
       - run: npm run lint
+        if: matrix.os == 'ubuntu-latest'
 
   changes:
     if: github.event_name == 'pull_request'
