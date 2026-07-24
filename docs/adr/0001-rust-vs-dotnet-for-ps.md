@@ -10,7 +10,7 @@ Accepted — Rust backend removed; .NET is the single maintained native stack.
 enumerates processes and prints one JSON object per line. Node.js consumes that
 output either by spawning a CLI or by loading a .NET assembly in-process.
 
-We evaluated Rust (`sysinfo` crate) and .NET 8 (P/Invoke + Native AOT / single
+We evaluated Rust (`sysinfo` crate) and .NET (P/Invoke + Native AOT / single
 file). The Rust implementation was a useful spike, but maintaining two separate
 platform readers duplicated effort with the .NET Node-API in-process backend.
 
