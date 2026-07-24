@@ -67,6 +67,27 @@ test("dotnet backend exposes startTime, uid, and user when fields are requested"
   assertProcessInfoFields(procs[0]);
 });
 
+test("dotnet backend exposes memory only when requested", async (t) => {
+  if (!getBinaryPath("dotnet")) {
+    t.skip("dotnet CLI binary not built");
+    return;
+  }
+
+  const procs = await listProcesses({
+    backend: "dotnet",
+    fields: ["pid", "name", "memory"],
+  });
+  assert.ok(procs.length > 0);
+  for (const p of procs) {
+    assert.strictEqual(typeof p.pid, "number");
+    assert.strictEqual(typeof p.name, "string");
+    assert.ok(
+      typeof p.memory === "number" && p.memory >= 0,
+      `memory should be a non-negative number, got ${p.memory}`,
+    );
+  }
+});
+
 test(
   "proc backend lists processes on Linux",
   { skip: process.platform !== "linux" },

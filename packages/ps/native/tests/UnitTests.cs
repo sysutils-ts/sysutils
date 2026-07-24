@@ -146,6 +146,22 @@ public class PsModuleTests
             Assert.Equal(new[] { "pid", "name" }.ToHashSet(), properties);
         }
     }
+
+    [Fact]
+    public void ListProcesses_MemoryField_IsPresentAndNonNegative()
+    {
+        var json = PsModule.ListProcesses("memory");
+        Assert.False(string.IsNullOrWhiteSpace(json));
+        var lines = json.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(lines.Length > 0, "Expected at least one process");
+        foreach (var line in lines)
+        {
+            using var doc = JsonDocument.Parse(line);
+            var mem = doc.RootElement.GetProperty("memory");
+            Assert.Equal(JsonValueKind.Number, mem.ValueKind);
+            Assert.True(mem.GetDouble() >= 0, "memory must be non-negative");
+        }
+    }
 }
 
 public class OptionsTests
