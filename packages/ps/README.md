@@ -149,14 +149,21 @@ interface ProcessInfo {
   startTime?: Date; // process start time (Linux, macOS, Windows)
   startedAt?: number; // process start time as Unix epoch ms
   cpu?: number; // CPU usage as a percent of one CPU (Linux)
-  memory?: number; // resident memory as a percent of total RAM (Linux)
+  memory?: number | null; // memory as a percent of total RAM (Linux, macOS, Windows)
 }
 ```
 
 `ProcessInfo` is intentionally aligned with `ps-list` so migration is a drop-in
 replacement for the Linux/Unix case. On Windows and macOS the shape starts with
-`ps-list`'s base fields (`pid`, `ppid`, `name`) and adds `uid`, `user`, and
-`startTime` where available.
+`ps-list`'s base fields (`pid`, `ppid`, `name`) and adds `uid`, `user`,
+`startTime`, and `memory` where available.
+
+The `memory` metric is not identical across platforms: Linux and macOS report
+resident set size (RSS) as a percentage of total RAM, while Windows reports the
+private working set (which excludes shared pages), so values are only loosely
+comparable across platforms. `memory` is `null` when it cannot be collected for
+a process — for example a process that exits mid-scan, or, on macOS, another
+user's process when the caller is not root (`proc_pidinfo` is denied).
 
 ## Backends
 

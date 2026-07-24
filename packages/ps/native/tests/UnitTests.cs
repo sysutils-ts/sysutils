@@ -146,6 +146,34 @@ public class PsModuleTests
             Assert.Equal(new[] { "pid", "name" }.ToHashSet(), properties);
         }
     }
+
+    [Fact]
+    public void ListProcesses_MemoryField_IsPresentAndNonNegative()
+    {
+        var json = PsModule.ListProcesses("memory");
+        Assert.False(string.IsNullOrWhiteSpace(json));
+        var lines = json.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(lines.Length > 0, "Expected at least one process");
+        var sawNumericMemory = false;
+        foreach (var line in lines)
+        {
+            using var doc = JsonDocument.Parse(line);
+            var mem = doc.RootElement.GetProperty("memory");
+            // Memory is null when it cannot be collected for a process (e.g. the
+            // process exited mid-scan, or on macOS when proc_pidinfo is denied
+            // for another user's process without root). Only require
+            // non-negative values when a number is present.
+            Assert.True(
+                mem.ValueKind == JsonValueKind.Number || mem.ValueKind == JsonValueKind.Null,
+                "memory must be a number or null");
+            if (mem.ValueKind == JsonValueKind.Number)
+            {
+                Assert.True(mem.GetDouble() >= 0, "memory must be non-negative");
+                sawNumericMemory = true;
+            }
+        }
+        Assert.True(sawNumericMemory, "at least one process should report a numeric memory value");
+    }
 }
 
 public class OptionsTests
