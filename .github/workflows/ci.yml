@@ -37,11 +37,25 @@ jobs:
           SYSUTILS_PS_TEST_NODEAPI: 1
       - run: npm run test:dotnet -w packages/ps
 
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.filter.outputs.native }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@9d7afb8d214ad99e78fbd4247752c4caed2b6e4c # v4.0.0
+        id: filter
+        with:
+          filters: |
+            native:
+              - 'packages/ps/native/**'
+
   native:
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
-        rid: ${{ github.event_name == 'pull_request' && fromJSON('["linux-x64","linux-arm64"]') || fromJSON('["win-x64","win-arm64","linux-x64","linux-arm64","osx-x64","osx-arm64"]') }}
+        rid: ${{ github.event_name == 'pull_request' && needs.changes.outputs.native != 'true' && fromJSON('["linux-x64","linux-arm64"]') || fromJSON('["win-x64","win-arm64","linux-x64","linux-arm64","osx-x64","osx-arm64"]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -52,5 +66,6 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
+      - run: npm ci --ignore-scripts
       - run: node packages/ps/scripts/build-native-all.ts cli ${{ matrix.rid }}
       - run: node packages/ps/scripts/build-native-all.ts nodeapi ${{ matrix.rid }}
