@@ -454,12 +454,68 @@ internal static class WindowsReader
     private const int STATUS_INFO_LENGTH_MISMATCH = -1073741820;
     private const int MaxBufferSize = 128 * 1024 * 1024;
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MEMORYSTATUSEX : IEquatable<MEMORYSTATUSEX>
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;
+        public ulong ullTotalPhys;
+        public ulong ullAvailPhys;
+        public ulong ullTotalPageFile;
+        public ulong ullAvailPageFile;
+        public ulong ullTotalVirtual;
+        public ulong ullAvailVirtual;
+        public ulong ullAvailExtendedVirtual;
+
+        public bool Equals(MEMORYSTATUSEX other) =>
+            dwLength == other.dwLength &&
+            dwMemoryLoad == other.dwMemoryLoad &&
+            ullTotalPhys == other.ullTotalPhys &&
+            ullAvailPhys == other.ullAvailPhys &&
+            ullTotalPageFile == other.ullTotalPageFile &&
+            ullAvailPageFile == other.ullAvailPageFile &&
+            ullTotalVirtual == other.ullTotalVirtual &&
+            ullAvailVirtual == other.ullAvailVirtual &&
+            ullAvailExtendedVirtual == other.ullAvailExtendedVirtual;
+
+        public override bool Equals(object? obj) => obj is MEMORYSTATUSEX other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+            hash.Add(dwLength);
+            hash.Add(dwMemoryLoad);
+            hash.Add(ullTotalPhys);
+            hash.Add(ullAvailPhys);
+            hash.Add(ullTotalPageFile);
+            hash.Add(ullAvailPageFile);
+            hash.Add(ullTotalVirtual);
+            hash.Add(ullAvailVirtual);
+            hash.Add(ullAvailExtendedVirtual);
+            return hash.ToHashCode();
+        }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
     [DllImport("ntdll.dll")]
     private static extern int NtQuerySystemInformation(
         int SystemInformationClass,
         IntPtr SystemInformation,
         int SystemInformationLength,
         out int ReturnLength);
+
+    private static double GetTotalPhysicalMemory()
+    {
+        var memStatus = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+        if (!GlobalMemoryStatusEx(ref memStatus))
+        {
+            return -1;
+        }
+        return (double)memStatus.ullTotalPhys;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct UnicodeString
@@ -489,6 +545,12 @@ internal static class WindowsReader
 
     public static void Write(TextWriter writer, ProcessFields fields)
     {
+        var totalMemory = -1.0;
+        if ((fields & ProcessFields.Memory) != 0)
+        {
+            totalMemory = GetTotalPhysicalMemory();
+        }
+
         var size = 512 * 1024;
         var buffer = Marshal.AllocHGlobal(size);
         try
@@ -498,7 +560,7 @@ internal static class WindowsReader
                 var status = NtQuerySystemInformation(SystemProcessInformationClass, buffer, size, out var returnLength);
                 if (status >= 0)
                 {
-                    WriteEntries(writer, fields, buffer, returnLength);
+                    WriteEntries(writer, fields, buffer, returnLength, totalMemory);
                     break;
                 }
                 if (status == STATUS_INFO_LENGTH_MISMATCH)
@@ -515,7 +577,7 @@ internal static class WindowsReader
         }
     }
 
-    private static void WriteEntries(TextWriter writer, ProcessFields fields, IntPtr buffer, int returnLength)
+    private static void WriteEntries(TextWriter writer, ProcessFields fields, IntPtr buffer, int returnLength, double totalMemory)
     {
         var managedBuffer = new byte[returnLength];
         Marshal.Copy(buffer, managedBuffer, 0, returnLength);
@@ -531,7 +593,7 @@ internal static class WindowsReader
             {
                 try
                 {
-                    WriteProcess(writer, fields, p);
+                    WriteProcess(writer, fields, p, totalMemory);
                 }
                 catch (ArgumentException)
                 {
@@ -559,7 +621,7 @@ internal static class WindowsReader
         return (-1, null);
     }
 
-    private static void WriteProcess(TextWriter writer, ProcessFields fields, SystemProcessInformation p)
+    private static void WriteProcess(TextWriter writer, ProcessFields fields, SystemProcessInformation p, double totalMemory)
     {
         var pid = p.UniqueProcessId.ToInt32();
         var ppid = p.InheritedFromUniqueProcessId.ToInt32();
@@ -576,6 +638,17 @@ internal static class WindowsReader
             startTime = DateTime.FromFileTimeUtc(p.CreateTime).ToString("o");
         }
 
+        // memory is a percentage of total physical RAM. Note the metric differs
+        // per platform: Windows uses the private working set
+        // (WorkingSetPrivateSize, excludes shared pages) while macOS and Linux
+        // use resident set size (RSS, includes shared pages). Values are
+        // therefore only loosely comparable across platforms.
+        var memory = -1.0;
+        if ((fields & ProcessFields.Memory) != 0 && totalMemory > 0)
+        {
+            memory = (double)p.WorkingSetPrivateSize / totalMemory * 100.0;
+        }
+
         var (uid, user) = GetProcessOwner(fields, pid);
 
         NativeHelpers.WriteProcessInfo(writer, fields, new ProcessInfo
@@ -586,7 +659,7 @@ internal static class WindowsReader
             StartTime = startTime,
             Uid = uid,
             User = user,
-            Memory = -1,
+            Memory = memory,
             Cpu = -1,
         });
     }
@@ -1347,8 +1420,25 @@ internal static class LinuxReader
 internal static class MacReader
 {
     private const int PROC_PIDTBSDINFO = 3;
+    private const int PROC_PIDTASKINFO = 4;
     private const int MaxBufferSize = 128 * 1024 * 1024;
     private const int ProcBsdInfoSize = 136;
+    private static readonly int ProcTaskInfoSize = Marshal.SizeOf<proc_taskinfo>();
+
+    [StructLayout(LayoutKind.Explicit, Size = 96)]
+    private struct proc_taskinfo : IEquatable<proc_taskinfo>
+    {
+        [FieldOffset(0)] public ulong pti_virtual_size;
+        [FieldOffset(8)] public ulong pti_resident_size;
+
+        public bool Equals(proc_taskinfo other) =>
+            pti_virtual_size == other.pti_virtual_size &&
+            pti_resident_size == other.pti_resident_size;
+
+        public override bool Equals(object? obj) => obj is proc_taskinfo other && Equals(other);
+
+        public override int GetHashCode() => HashCode.Combine(pti_virtual_size, pti_resident_size);
+    }
 
     [DllImport("libSystem.dylib", SetLastError = true)]
     private static extern int proc_listpids(uint type, uint typeinfo, IntPtr buffer, int buffersize);
@@ -1362,8 +1452,41 @@ internal static class MacReader
     [DllImport("libSystem.dylib")]
     private static extern IntPtr getpwuid(uint uid);
 
+    [DllImport("libSystem.dylib", SetLastError = true)]
+    private static extern int sysctlbyname(
+        [MarshalAs(UnmanagedType.LPStr)] string name,
+        IntPtr oldp,
+        ref IntPtr oldlenp,
+        IntPtr newp,
+        IntPtr newlen);
+
+    private static double GetTotalPhysicalMemory()
+    {
+        var size = (IntPtr)sizeof(ulong);
+        var memPtr = Marshal.AllocHGlobal(sizeof(ulong));
+        try
+        {
+            if (sysctlbyname("hw.memsize", memPtr, ref size, IntPtr.Zero, IntPtr.Zero) == 0)
+            {
+                return (double)Marshal.ReadInt64(memPtr);
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(memPtr);
+        }
+
+        return -1;
+    }
+
     public static void Write(TextWriter writer, ProcessFields fields)
     {
+        var totalMemory = -1.0;
+        if ((fields & ProcessFields.Memory) != 0)
+        {
+            totalMemory = GetTotalPhysicalMemory();
+        }
+
         var size = 4096;
         var pids = Marshal.AllocHGlobal(size);
         int used;
@@ -1385,16 +1508,33 @@ internal static class MacReader
                 pids = NativeHelpers.GrowBuffer(pids, ref size, MaxBufferSize, "PID");
             }
 
-            var info = Marshal.AllocHGlobal(ProcBsdInfoSize);
-            var pathBuf = Marshal.AllocHGlobal(4096);
+            var info = IntPtr.Zero;
+            var pathBuf = IntPtr.Zero;
+            var taskInfo = IntPtr.Zero;
             try
             {
-                WritePids(writer, fields, pids, used, info, pathBuf);
+                info = Marshal.AllocHGlobal(ProcBsdInfoSize);
+                pathBuf = Marshal.AllocHGlobal(4096);
+                if ((fields & ProcessFields.Memory) != 0)
+                {
+                    taskInfo = Marshal.AllocHGlobal(ProcTaskInfoSize);
+                }
+                WritePids(writer, fields, pids, used, info, pathBuf, taskInfo, totalMemory);
             }
             finally
             {
-                Marshal.FreeHGlobal(info);
-                Marshal.FreeHGlobal(pathBuf);
+                if (info != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(info);
+                }
+                if (pathBuf != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(pathBuf);
+                }
+                if (taskInfo != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(taskInfo);
+                }
             }
         }
         finally
@@ -1403,7 +1543,7 @@ internal static class MacReader
         }
     }
 
-    private static void WritePids(TextWriter writer, ProcessFields fields, IntPtr pids, int used, IntPtr info, IntPtr pathBuf)
+    private static void WritePids(TextWriter writer, ProcessFields fields, IntPtr pids, int used, IntPtr info, IntPtr pathBuf, IntPtr taskInfo, double totalMemory)
     {
         var count = used / 4;
         for (var i = 0; i < count; i++)
@@ -1422,7 +1562,7 @@ internal static class MacReader
 
             try
             {
-                WriteProcess(writer, fields, pid, info, pathBuf);
+                WriteProcess(writer, fields, pid, info, pathBuf, taskInfo, totalMemory);
             }
             catch (ArgumentException)
             {
@@ -1431,20 +1571,13 @@ internal static class MacReader
         }
     }
 
-    private static void WriteProcess(TextWriter writer, ProcessFields fields, int pid, IntPtr info, IntPtr pathBuf)
+    private static void WriteProcess(TextWriter writer, ProcessFields fields, int pid, IntPtr info, IntPtr pathBuf, IntPtr taskInfo, double totalMemory)
     {
         var ppid = (uint)Marshal.ReadInt32(info, 16);
         var uid = (uint)Marshal.ReadInt32(info, 20);
         var startSec = (ulong)Marshal.ReadInt64(info, 120);
         var startUsec = (ulong)Marshal.ReadInt64(info, 128);
         var (name, path) = GetNameAndPath(fields, pid, pathBuf);
-
-        string? startTime = null;
-        if ((fields & ProcessFields.StartTime) != 0 && startSec > 0)
-        {
-            var dt = DateTimeOffset.FromUnixTimeSeconds((long)startSec).AddTicks((long)startUsec * 10);
-            startTime = dt.ToString("o");
-        }
 
         string? user = null;
         if ((fields & ProcessFields.User) != 0 || (fields & ProcessFields.Uid) != 0)
@@ -1458,12 +1591,40 @@ internal static class MacReader
             Ppid = (int)ppid,
             Name = name ?? string.Empty,
             Path = path,
-            StartTime = startTime,
+            StartTime = ComputeStartTime(fields, startSec, startUsec),
             Uid = (int)uid,
             User = user,
-            Memory = -1,
+            Memory = ComputeMemory(fields, pid, taskInfo, totalMemory),
             Cpu = -1,
         });
+    }
+
+    private static string? ComputeStartTime(ProcessFields fields, ulong startSec, ulong startUsec)
+    {
+        if ((fields & ProcessFields.StartTime) == 0 || startSec == 0)
+        {
+            return null;
+        }
+
+        var dt = DateTimeOffset.FromUnixTimeSeconds((long)startSec).AddTicks((long)startUsec * 10);
+        return dt.ToString("o");
+    }
+
+    private static double ComputeMemory(ProcessFields fields, int pid, IntPtr taskInfo, double totalMemory)
+    {
+        if ((fields & ProcessFields.Memory) == 0 || taskInfo == IntPtr.Zero || totalMemory <= 0)
+        {
+            return -1.0;
+        }
+
+        var len = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, taskInfo, ProcTaskInfoSize);
+        if (len != ProcTaskInfoSize)
+        {
+            return -1.0;
+        }
+
+        var task = Marshal.PtrToStructure<proc_taskinfo>(taskInfo);
+        return (double)task.pti_resident_size / totalMemory * 100.0;
     }
 
     private static string? GetUserName(uint uid)
