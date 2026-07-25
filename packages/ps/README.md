@@ -242,8 +242,12 @@ The in-process backend is roughly **4–35× faster** than the CLI spawn path an
 ### Cold-start benchmark
 
 `packages/ps/scripts/benchmark.ts` can also measure first-call latency by
-spawning a fresh Node.js process for each sample. This captures the CLI
-spawn/JIT overhead for the in-process backend and the `ps-list` startup cost.
+spawning a fresh Node.js process for each sample. This captures fresh-process
+startup/JIT overhead (every backend) and native CLI spawn overhead (only the
+`dotnet` backend), plus the `ps-list` startup cost when `--compare` is used.
+
+The package targets Node.js ≥ 24, which can execute `.ts` files directly. If you
+are on an older Node version, run the script via `npx tsx` instead:
 
 ```bash
 node packages/ps/scripts/benchmark.ts \
