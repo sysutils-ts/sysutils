@@ -209,8 +209,8 @@ function createNodeapiStream(args: {
     read() {},
   }) as ProcessStream;
 
-  // Defer stream setup so callers receive the stream immediately; the actual
-  // .NET host and addon loading still happens synchronously inside the worker.
+  // Defer stream setup so callers receive the stream immediately; .NET host
+  // and addon initialization can still block the main thread after import.
   setImmediate(() => {
     (async () => {
       try {
@@ -241,17 +241,7 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
   }
 
   if (backend === "dotnet-nodeapi") {
-    const binaryPath = getBinaryPath("dotnet-nodeapi");
-    if (!binaryPath) {
-      if (!nodeApiDotNetAvailable()) {
-        throw new Error(
-          `Backend "dotnet-nodeapi" was selected but the node-api-dotnet runtime package is not installed.`,
-        );
-      }
-      throw new Error(
-        `Backend "dotnet-nodeapi" was selected but its native binary is missing. Run \`npm run build:nodeapi\` in @sysutils/ps.`,
-      );
-    }
+    const binaryPath = resolveDotnetNodeapiBinary();
     return createNodeapiStream({
       binaryPath,
       fields: backendFields,
@@ -349,12 +339,7 @@ async function collectStream(stream: ProcessStream): Promise<ProcessInfo[]> {
   return (await stream.toArray()) as ProcessInfo[];
 }
 
-export async function preload(options?: PsOptions): Promise<void> {
-  const backend = resolveBackend(options);
-  if (backend !== "dotnet-nodeapi") {
-    return;
-  }
-
+function resolveDotnetNodeapiBinary(): string {
   const binaryPath = getBinaryPath("dotnet-nodeapi");
   if (!binaryPath) {
     if (!nodeApiDotNetAvailable()) {
@@ -366,7 +351,16 @@ export async function preload(options?: PsOptions): Promise<void> {
       `Backend "dotnet-nodeapi" was selected but its native binary is missing. Run \`npm run build:nodeapi\` in @sysutils/ps.`,
     );
   }
+  return binaryPath;
+}
 
+export async function preload(options?: PsOptions): Promise<void> {
+  const backend = resolveBackend(options);
+  if (backend !== "dotnet-nodeapi") {
+    return;
+  }
+
+  const binaryPath = resolveDotnetNodeapiBinary();
   await loadDotnetNodeapi(binaryPath);
 }
 
@@ -392,10 +386,15 @@ async function listProcessesInternal(
   } catch (err) {
     try {
       return await listProcessesInternal({ ...options, backend: "auto" }, tried);
-    } catch {
-      throw new Error(
-        `Backend "dotnet-nodeapi" failed and no fallback is available.`,
-        { cause: err instanceof Error ? err : new Error(String(err)) },
+    } catch (fallbackErr) {
+      throw new AggregateError(
+        [
+          err instanceof Error ? err : new Error(String(err)),
+          fallbackErr instanceof Error
+            ? fallbackErr
+            : new Error(String(fallbackErr)),
+        ],
+        `Backend "dotnet-nodeapi" and its automatic fallback both failed.`,
       );
     }
   }
