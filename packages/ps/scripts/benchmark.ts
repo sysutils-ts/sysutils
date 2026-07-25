@@ -323,8 +323,12 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
   }
 }
 
-const COLD_SAMPLE_TIMEOUT_MS =
-  Number(process.env.SYSUTILS_PS_COLD_TIMEOUT_MS) || 30_000;
+function resolveColdTimeoutMs(): number {
+  const configured = Number(process.env.SYSUTILS_PS_COLD_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured > 0 ? configured : 30_000;
+}
+
+const COLD_SAMPLE_TIMEOUT_MS = resolveColdTimeoutMs();
 
 async function spawnColdSample(
   backend: Backend,
@@ -480,15 +484,19 @@ async function maybeHangForTest(): Promise<void> {
   }
 }
 
+type ColdBackendResult =
+  | { result: unknown; error?: never }
+  | { result?: never; error: Error };
+
 async function runColdBackend(
   backend: string,
   fields: string[],
-): Promise<{ result?: unknown; error?: Error }> {
+): Promise<ColdBackendResult> {
   try {
     const result = await (backend === "ps-list"
       ? runColdPsList()
       : runColdNative(backend, fields));
-    return { result };
+    return { result } as ColdBackendResult;
   } catch (e) {
     return { error: e instanceof Error ? e : new Error(String(e)) };
   }
