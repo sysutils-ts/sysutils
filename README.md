@@ -72,13 +72,14 @@ The Benchmark workflow runs on relevant pull requests and can be dispatched
 manually from `main` to publish an up-to-date SVG badge without touching this
 README:
 
-![@sysutils/ps benchmark](https://sysutils-ts.github.io/sysutils/benchmark.svg)
+![@sysutils/ps hot benchmark](https://sysutils-ts.github.io/sysutils/benchmark.svg)
+![@sysutils/ps cold-start benchmark](https://sysutils-ts.github.io/sysutils/benchmark-cold.svg)
 
 The same workflow also runs a cold-start benchmark (fresh Node process per
 sample) and uploads both `benchmark-*.svg` and `benchmark-cold-*.svg` as
 artifacts. To run it locally, see `packages/ps/scripts/benchmark.ts`.
 
-> The badge is published to the `gh-pages` branch by the `Benchmark` workflow.
+> The badges are published to the `gh-pages` branch by the `Benchmark` workflow.
 
 ## Design
 
