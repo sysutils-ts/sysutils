@@ -133,17 +133,15 @@ jobs:
         id: pick-badge
         run: |
           mkdir -p _site
-          if [ -f benchmark-output/benchmark-ubuntu-latest.svg ]; then
-            cp benchmark-output/benchmark-ubuntu-latest.svg _site/benchmark.svg
+          hot="benchmark-output/benchmark-ubuntu-latest.svg"
+          cold="benchmark-output/benchmark-cold-ubuntu-latest.svg"
+          if [ -f "$hot" ] && [ -f "$cold" ]; then
+            cp "$hot" _site/benchmark.svg
+            cp "$cold" _site/benchmark-cold.svg
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Linux benchmark SVG not found; badge will not be updated"
+            echo "One or both Linux benchmark SVGs not found; badges will not be updated"
             echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [ -f benchmark-output/benchmark-cold-ubuntu-latest.svg ]; then
-            cp benchmark-output/benchmark-cold-ubuntu-latest.svg _site/benchmark-cold.svg
-          else
-            echo "Linux cold-start benchmark SVG not found; cold badge will not be updated"
           fi
 
       - name: Deploy to GitHub Pages
