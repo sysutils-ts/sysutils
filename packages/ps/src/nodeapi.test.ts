@@ -50,20 +50,6 @@ test("dotnet-nodeapi selection, fallback, and explicit execution", async (t) => 
   }
 
   try {
-    // 0. Preload initializes the dotnet-nodeapi backend so the first real call
-    // is warm. It must resolve and not throw, and a subsequent call must work.
-    await preload({ backend: "dotnet-nodeapi" });
-    const preloaded = await listProcesses({
-      backend: "dotnet-nodeapi",
-      fields: ["pid", "name"],
-    });
-    assert.ok(preloaded.length > 0);
-    assert.ok(
-      preloaded.every(
-        (p) => typeof p.pid === "number" && typeof p.name === "string",
-      ),
-    );
-
     // 1. Env-selected nodeapi with a missing assembly falls back to the dotnet CLI.
     setTestBinary(undefined);
     process.env.SYSUTILS_PS_BACKEND = "dotnet-nodeapi";
@@ -104,6 +90,22 @@ test("dotnet-nodeapi selection, fallback, and explicit execution", async (t) => 
     assert.ok(explicit.length > 0);
     assert.ok(
       explicit.every(
+        (p) => typeof p.pid === "number" && typeof p.name === "string",
+      ),
+    );
+
+    // 4. Preload initializes the dotnet-nodeapi backend so the first real call
+    // is warm. It must resolve and not throw, and a subsequent call must work.
+    // This runs after the file-deletion fallback tests because on Windows the
+    // loaded native DLL is locked and cannot be removed.
+    await preload({ backend: "dotnet-nodeapi" });
+    const preloaded = await listProcesses({
+      backend: "dotnet-nodeapi",
+      fields: ["pid", "name"],
+    });
+    assert.ok(preloaded.length > 0);
+    assert.ok(
+      preloaded.every(
         (p) => typeof p.pid === "number" && typeof p.name === "string",
       ),
     );

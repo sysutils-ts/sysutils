@@ -22,12 +22,15 @@ export type {
   ProcessStream,
 } from "./types.js";
 
-let cachedDotnetAddon:
-  | {
-      path: string;
-      addon: { PsModule: { listProcesses: (_fields: string) => string } };
-    }
-  | undefined;
+interface DotnetModule {
+  PsModule: { listProcesses: (fields: string) => string };
+}
+
+interface DotnetHost {
+  require: (path: string) => DotnetModule;
+}
+
+const dotnetAddonPromises = new Map<string, Promise<DotnetModule>>();
 
 type SupportedBackend = "dotnet" | "dotnet-nodeapi" | "proc";
 
@@ -86,7 +89,8 @@ function resolveOptionalDepFile(rel: string): string | undefined {
   const pkgName = platformPackageName();
   if (!pkgName) return undefined;
   try {
-    const pkgRoot = path.dirname(fileURLToPath(import.meta.resolve(pkgName)));
+    const pkgJsonUrl = import.meta.resolve(`${pkgName}/package.json`);
+    const pkgRoot = path.dirname(fileURLToPath(pkgJsonUrl));
     const candidate = path.join(pkgRoot, rel);
     if (existsSync(candidate)) return candidate;
   } catch {
@@ -317,26 +321,27 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
   return stream;
 }
 
-async function loadDotnetNodeapi(binaryPath: string): Promise<void> {
-  if (cachedDotnetAddon?.path === binaryPath) return;
-  const { default: dotnet } = (await import("node-api-dotnet/net10.0")) as {
-    default: {
-      require: (path: string) => {
-        PsModule: { listProcesses: (fields: string) => string };
-      };
+async function loadDotnetNodeapi(binaryPath: string): Promise<DotnetModule> {
+  const existing = dotnetAddonPromises.get(binaryPath);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const { default: dotnet } = (await import("node-api-dotnet/net10.0")) as {
+      default: DotnetHost;
     };
-  };
-  cachedDotnetAddon = { path: binaryPath, addon: dotnet.require(binaryPath) };
+    return dotnet.require(binaryPath);
+  })();
+
+  dotnetAddonPromises.set(binaryPath, promise);
+  return promise;
 }
 
 async function getNodeapiJson(
   fields: string[] | undefined,
   binaryPath: string,
 ): Promise<string> {
-  await loadDotnetNodeapi(binaryPath);
-  return cachedDotnetAddon!.addon.PsModule.listProcesses(
-    fields?.join(",") ?? "",
-  );
+  const addon = await loadDotnetNodeapi(binaryPath);
+  return addon.PsModule.listProcesses(fields?.join(",") ?? "");
 }
 
 async function collectStream(stream: ProcessStream): Promise<ProcessInfo[]> {
@@ -364,8 +369,9 @@ export async function preload(options?: PsOptions): Promise<void> {
   await loadDotnetNodeapi(binaryPath);
 }
 
-export async function listProcesses(
+async function listProcessesInternal(
   options?: PsOptions,
+  tried: Set<string> = new Set(),
 ): Promise<ProcessInfo[]> {
   const backend = resolveBackend(options);
   if (backend !== "dotnet-nodeapi" || options?.backend === "dotnet-nodeapi") {
@@ -374,9 +380,21 @@ export async function listProcesses(
 
   // Env-selected nodeapi may be missing or corrupt; fall back to the dotnet CLI
   // (or the /proc backend on Linux) before giving up.
+  if (tried.has("dotnet-nodeapi")) {
+    throw new Error(
+      `Backend "dotnet-nodeapi" failed and no fallback is available.`,
+    );
+  }
+  tried.add("dotnet-nodeapi");
   try {
     return await collectStream(createProcessStream(options));
   } catch {
-    return listProcesses({ ...options, backend: "auto" });
+    return listProcessesInternal({ ...options, backend: "auto" }, tried);
   }
+}
+
+export async function listProcesses(
+  options?: PsOptions,
+): Promise<ProcessInfo[]> {
+  return listProcessesInternal(options);
 }
