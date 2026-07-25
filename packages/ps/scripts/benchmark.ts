@@ -2,6 +2,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 interface Stats {
@@ -322,7 +323,8 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
   }
 }
 
-const COLD_SAMPLE_TIMEOUT_MS = 30_000;
+const COLD_SAMPLE_TIMEOUT_MS =
+  Number(process.env.SYSUTILS_PS_COLD_TIMEOUT_MS) || 30_000;
 
 async function spawnColdSample(
   backend: Backend,
@@ -354,7 +356,8 @@ async function spawnColdSample(
     const timer = setTimeout(() => {
       settled = true;
       stderr += "cold sample timed out\n";
-      child.kill();
+      child.kill("SIGKILL");
+      resolve({ code: null, stdout, stderr });
     }, COLD_SAMPLE_TIMEOUT_MS);
 
     child.stdout.setEncoding("utf8");
@@ -456,6 +459,12 @@ async function runColdSample(): Promise<void> {
   }
 
   const fields = parseFields(getArg("--fields") ?? "");
+
+  // Test hook: simulate a hung cold sample so the timeout path can be exercised.
+  const hangMs = Number(process.env.SYSUTILS_PS_TEST_COLD_HANG_MS) || 0;
+  if (hangMs > 0) {
+    await sleep(hangMs);
+  }
 
   const start = performance.now();
   let result: unknown;

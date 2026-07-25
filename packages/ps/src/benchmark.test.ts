@@ -9,11 +9,16 @@ import { getBinaryPath } from "./index.js";
 const packageDir = path.resolve(import.meta.dirname, "..");
 const binary = path.join(packageDir, "scripts", "benchmark.ts");
 
-function run(args: string[]) {
+function run(args: string[], extraEnv?: Record<string, string>) {
   return spawnSync(process.execPath, [binary, ...args], {
     cwd: packageDir,
     encoding: "utf8",
-    env: { ...process.env, FORCE_COLOR: "0", GITHUB_STEP_SUMMARY: "" },
+    env: {
+      ...process.env,
+      FORCE_COLOR: "0",
+      GITHUB_STEP_SUMMARY: "",
+      ...extraEnv,
+    },
   });
 }
 
@@ -162,5 +167,33 @@ test(
     assert.ok(svg.includes("P99"), "expected P99 legend label");
     const meanMatches = svg.match(/fill='#2563eb'/g) ?? [];
     assert.ok(meanMatches.length > 1, "expected at least one Mean data bar beyond the legend swatch");
+  },
+);
+
+test(
+  "benchmark CLI --cold times out a hung sample and reports an error",
+  { skip: !getBinaryPath("dotnet") },
+  () => {
+    const result = run(
+      ["--cold", "1", "--runs", "1", "--warmup", "0", "--fields", "pid"],
+      {
+        SYSUTILS_PS_COLD_TIMEOUT_MS: "100",
+        SYSUTILS_PS_TEST_COLD_HANG_MS: "5000",
+      },
+    );
+    assert.notStrictEqual(result.status, 0, "expected failure due to timeout");
+    assert.ok(
+      result.stderr.includes("timed out"),
+      `stderr should report timeout: ${result.stderr}`,
+    );
+    const payload = JSON.parse(result.stdout) as {
+      results: { id: string; error?: string }[];
+    };
+    assert.ok(
+      payload.results.some(
+        (r) => r.id === "dotnet" && r.error?.includes("timed out"),
+      ),
+      "expected dotnet backend to report timeout error",
+    );
   },
 );
