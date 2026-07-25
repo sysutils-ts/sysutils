@@ -384,9 +384,23 @@ async function runOneColdSample(
 ): Promise<{ duration: number; count: number | null }> {
   const { code, stdout, stderr } = await spawnColdSample(backend, fields);
   const line = stdout.trim().split("\n").pop() ?? stdout.trim();
-  if (code !== 0) {
-    throw new Error(stderr.trim() || `cold sample exited with code ${code}`);
+
+  let message: string | undefined;
+  try {
+    const parsed = JSON.parse(line) as { error?: string };
+    message = parsed.error;
+  } catch {
+    // Ignore malformed JSON; fall through to stderr/code fallback.
   }
+
+  if (code !== 0) {
+    throw new Error(message || stderr.trim() || `cold sample exited with code ${code}`);
+  }
+
+  if (message) {
+    throw new Error(message);
+  }
+
   return parseColdSampleOutput(line);
 }
 
@@ -420,13 +434,14 @@ async function runColdSample(): Promise<void> {
   }
 
   const fields = parseFields(getArg("--fields") ?? "");
-  const ps = (await import(pathToFileURL(distIndex).href)) as PsModule;
 
   const start = performance.now();
   let result: unknown;
   let error: Error | undefined;
   try {
-    result = await ps.listProcesses({ backend, fields });
+    result = await (backend === "ps-list"
+      ? runColdPsList(fields)
+      : runColdNative(backend, fields));
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
   }
@@ -438,6 +453,31 @@ async function runColdSample(): Promise<void> {
   process.stdout.write(JSON.stringify(output) + "\n", () => {
     process.exit(error ? 1 : 0);
   });
+}
+
+async function runColdNative(backend: string, fields: string[]): Promise<unknown> {
+  const ps = (await import(pathToFileURL(distIndex).href)) as PsModule;
+  return ps.listProcesses({ backend, fields });
+}
+
+async function runColdPsList(fields: string[]): Promise<unknown> {
+  const mod = (await import("ps-list")) as { default?: unknown };
+  const psList = mod.default ?? mod;
+  if (typeof psList !== "function") {
+    throw new TypeError("ps-list did not export a callable function");
+  }
+  const result = await (psList as () => Promise<unknown[]>)();
+  return result.map((row) => pickFields(row, fields));
+}
+
+function pickFields(row: unknown, fields: string[]): unknown {
+  if (row == null || typeof row !== "object") return row;
+  const record = row as Record<string, unknown>;
+  const picked: Record<string, unknown> = {};
+  for (const field of fields) {
+    picked[field] = record[field];
+  }
+  return picked;
 }
 
 async function runBenchmarks(
@@ -668,10 +708,12 @@ function renderSvg(meta: Meta, results: Result[]): string {
   const chartHeight = results.length * groupHeight;
   const height = margin.top + chartHeight + margin.bottom;
 
-  const title =
-    meta.cold && meta.cold > 0
-      ? `${meta.rid} — cold start — ${meta.fields.join(',')} — ${meta.cold} sample${meta.cold === 1 ? "" : "s"}`
-      : `${meta.rid} — ${meta.fields.join(',')} — ${meta.runs} runs`;
+  let title: string;
+  if (meta.cold && meta.cold > 0) {
+    title = `${meta.rid} — cold start — ${meta.fields.join(',')} — ${meta.cold} sample${meta.cold === 1 ? "" : "s"}`;
+  } else {
+    title = `${meta.rid} — ${meta.fields.join(',')} — ${meta.runs} runs`;
+  }
   const subtitle = `${meta.node} / ${meta.date.slice(0, 19).replace('T', ' ')}`;
 
   const metrics: { key: 'mean' | 'p95' | 'p99'; label: string; color: string }[] = [
