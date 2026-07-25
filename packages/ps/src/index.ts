@@ -1,7 +1,6 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { Readable } from "node:stream";
 import type { Readable as ReadableStream } from "node:stream";
@@ -14,8 +13,6 @@ import {
   type ProcessStream,
   type PsOptions,
 } from "./types.js";
-
-const require = createRequire(import.meta.url);
 
 export { toProcessRow } from "./types.js";
 export type {
@@ -59,7 +56,7 @@ function readBinariesMap(): BinariesMap | undefined {
 
 function nodeApiDotNetAvailable(): boolean {
   try {
-    require.resolve("node-api-dotnet/net10.0");
+    import.meta.resolve("node-api-dotnet/net10.0");
     return true;
   } catch {
     return false;
@@ -89,8 +86,7 @@ function resolveOptionalDepFile(rel: string): string | undefined {
   const pkgName = platformPackageName();
   if (!pkgName) return undefined;
   try {
-    const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
-    const pkgRoot = path.dirname(pkgJsonPath);
+    const pkgRoot = path.dirname(fileURLToPath(import.meta.resolve(pkgName)));
     const candidate = path.join(pkgRoot, rel);
     if (existsSync(candidate)) return candidate;
   } catch {
@@ -209,18 +205,20 @@ function createNodeapiStream(args: {
     read() {},
   }) as ProcessStream;
 
-  // Defer the synchronous in-process work so callers that consume via the
-  // stream/async iterator do not block the event loop during setup.
+  // Defer the in-process work so callers that consume via the stream/async
+  // iterator do not block the event loop while the .NET host is loading.
   setImmediate(() => {
-    try {
-      const json = getNodeapiJson(args.fields, args.binaryPath);
-      for (const line of json.split("\n")) {
-        pushJsonLine(stream, line, args.requestedFields);
+    (async () => {
+      try {
+        const json = await getNodeapiJson(args.fields, args.binaryPath);
+        for (const line of json.split("\n")) {
+          pushJsonLine(stream, line, args.requestedFields);
+        }
+        stream.push(null);
+      } catch (err) {
+        stream.destroy(err instanceof Error ? err : new Error(String(err)));
       }
-      stream.push(null);
-    } catch (err) {
-      stream.destroy(err instanceof Error ? err : new Error(String(err)));
-    }
+    })();
   });
 
   return stream;
@@ -319,21 +317,23 @@ export function createProcessStream(options?: PsOptions): ProcessStream {
   return stream;
 }
 
-function loadDotnetNodeapi(binaryPath: string): void {
+async function loadDotnetNodeapi(binaryPath: string): Promise<void> {
   if (cachedDotnetAddon?.path === binaryPath) return;
-  const dotnet = require("node-api-dotnet/net10.0") as {
-    require: (path: string) => {
-      PsModule: { listProcesses: (fields: string) => string };
+  const { default: dotnet } = (await import("node-api-dotnet/net10.0")) as {
+    default: {
+      require: (path: string) => {
+        PsModule: { listProcesses: (fields: string) => string };
+      };
     };
   };
   cachedDotnetAddon = { path: binaryPath, addon: dotnet.require(binaryPath) };
 }
 
-function getNodeapiJson(
+async function getNodeapiJson(
   fields: string[] | undefined,
   binaryPath: string,
-): string {
-  loadDotnetNodeapi(binaryPath);
+): Promise<string> {
+  await loadDotnetNodeapi(binaryPath);
   return cachedDotnetAddon!.addon.PsModule.listProcesses(
     fields?.join(",") ?? "",
   );
@@ -341,6 +341,27 @@ function getNodeapiJson(
 
 async function collectStream(stream: ProcessStream): Promise<ProcessInfo[]> {
   return (await stream.toArray()) as ProcessInfo[];
+}
+
+export async function preload(options?: PsOptions): Promise<void> {
+  const backend = resolveBackend(options);
+  if (backend !== "dotnet-nodeapi") {
+    return;
+  }
+
+  const binaryPath = getBinaryPath("dotnet-nodeapi");
+  if (!binaryPath) {
+    if (!nodeApiDotNetAvailable()) {
+      throw new Error(
+        `Backend "dotnet-nodeapi" was selected but the node-api-dotnet runtime package is not installed.`,
+      );
+    }
+    throw new Error(
+      `Backend "dotnet-nodeapi" was selected but its native binary is missing. Run \`npm run build:nodeapi\` in @sysutils/ps.`,
+    );
+  }
+
+  await loadDotnetNodeapi(binaryPath);
 }
 
 export async function listProcesses(

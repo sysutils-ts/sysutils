@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { getBinaryPath, listProcesses } from "./index.js";
+import { getBinaryPath, listProcesses, preload } from "./index.js";
 
 test("dotnet-nodeapi selection, fallback, and explicit execution", async (t) => {
   // node-api-dotnet 0.9.21 has an open shutdown bug on Node >= 24.14.0 that can
@@ -50,6 +50,20 @@ test("dotnet-nodeapi selection, fallback, and explicit execution", async (t) => 
   }
 
   try {
+    // 0. Preload initializes the dotnet-nodeapi backend so the first real call
+    // is warm. It must resolve and not throw, and a subsequent call must work.
+    await preload({ backend: "dotnet-nodeapi" });
+    const preloaded = await listProcesses({
+      backend: "dotnet-nodeapi",
+      fields: ["pid", "name"],
+    });
+    assert.ok(preloaded.length > 0);
+    assert.ok(
+      preloaded.every(
+        (p) => typeof p.pid === "number" && typeof p.name === "string",
+      ),
+    );
+
     // 1. Env-selected nodeapi with a missing assembly falls back to the dotnet CLI.
     setTestBinary(undefined);
     process.env.SYSUTILS_PS_BACKEND = "dotnet-nodeapi";

@@ -13,7 +13,7 @@ function run(args: string[]) {
   return spawnSync(process.execPath, [binary, ...args], {
     cwd: packageDir,
     encoding: "utf8",
-    env: { ...process.env, FORCE_COLOR: "0" },
+    env: { ...process.env, FORCE_COLOR: "0", GITHUB_STEP_SUMMARY: "" },
   });
 }
 

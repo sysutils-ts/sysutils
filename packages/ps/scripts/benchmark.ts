@@ -433,6 +433,33 @@ ${compareNote}
   in-process <code>node-api-dotnet</code> backend when available, so no external
   <code>ps</code> or <code>tasklist</code> commands are spawned.
 </p>
+<p>
+  <strong>About the in-process backend:</strong> the first call loads the .NET
+  runtime and the native addon, which can take 50–150 ms on a cold start (use
+  <code>--runs 1 --warmup 0</code> to measure it). If you plan to call
+  <code>listProcesses</code> repeatedly, use
+  <code>await preload({ backend: "dotnet-nodeapi" })</code> during startup to
+  pay that cost up front. The numbers above are measured after
+  <code>${meta.warmup}</code> warmup runs, so they reflect steady-state
+  performance. Choose the backend that matches your workload:
+</p>
+<ul>
+  <li>
+    <strong>CLI:</strong> best for one-off calls from short-lived scripts or
+    when the node-api addon is unavailable.
+  </li>
+  <li>
+    <strong>In-process:</strong> best when you call
+    <code>listProcesses</code> repeatedly in the same Node.js process — the
+    addon stays loaded and subsequent calls are typically faster than spawning
+    a CLI process or running <code>ps-list</code>.
+  </li>
+  <li>
+    <strong>ps-list:</strong> a pure-JS alternative that is convenient for
+    small scripts, but it may spawn external commands and always returns all
+    fields.
+  </li>
+</ul>
 <table>
   <thead>
     <tr>

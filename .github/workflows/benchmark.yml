@@ -102,6 +102,26 @@ jobs:
           name: benchmark-${{ matrix.os }}
           path: benchmark-output/benchmark-${{ matrix.os }}.svg
 
+      - name: Run cold-start benchmark
+        shell: bash
+        run: |
+          COMPARE_FLAG=""
+          if [ "$SYSUTILS_PS_BENCHMARK_COMPARE" = "1" ]; then
+            COMPARE_FLAG="--compare"
+          fi
+          node packages/ps/scripts/benchmark.ts \
+            --runs 1 \
+            --warmup 0 \
+            --fields "$BENCHMARK_FIELDS" \
+            $COMPARE_FLAG \
+            --svg "benchmark-output/benchmark-cold-${{ matrix.os }}.svg"
+
+      - name: Upload cold-start SVG artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-cold-${{ matrix.os }}
+          path: benchmark-output/benchmark-cold-${{ matrix.os }}.svg
+
   publish-badge:
     name: Publish benchmark badge
     needs: benchmark
