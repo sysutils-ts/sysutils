@@ -459,23 +459,10 @@ async function runColdSample(): Promise<void> {
   }
 
   const fields = parseFields(getArg("--fields") ?? "");
-
-  // Test hook: simulate a hung cold sample so the timeout path can be exercised.
-  const hangMs = Number(process.env.SYSUTILS_PS_TEST_COLD_HANG_MS) || 0;
-  if (hangMs > 0) {
-    await sleep(hangMs);
-  }
+  await maybeHangForTest();
 
   const start = performance.now();
-  let result: unknown;
-  let error: Error | undefined;
-  try {
-    result = await (backend === "ps-list"
-      ? runColdPsList()
-      : runColdNative(backend, fields));
-  } catch (e) {
-    error = e instanceof Error ? e : new Error(String(e));
-  }
+  const { result, error } = await runColdBackend(backend, fields);
   const duration = performance.now() - start;
 
   const output = error
@@ -484,6 +471,27 @@ async function runColdSample(): Promise<void> {
   process.stdout.write(JSON.stringify(output) + "\n", () => {
     process.exit(error ? 1 : 0);
   });
+}
+
+async function maybeHangForTest(): Promise<void> {
+  const hangMs = Number(process.env.SYSUTILS_PS_TEST_COLD_HANG_MS) || 0;
+  if (hangMs > 0) {
+    await sleep(hangMs);
+  }
+}
+
+async function runColdBackend(
+  backend: string,
+  fields: string[],
+): Promise<{ result?: unknown; error?: Error }> {
+  try {
+    const result = await (backend === "ps-list"
+      ? runColdPsList()
+      : runColdNative(backend, fields));
+    return { result };
+  } catch (e) {
+    return { error: e instanceof Error ? e : new Error(String(e)) };
+  }
 }
 
 async function runColdNative(backend: string, fields: string[]): Promise<unknown> {
