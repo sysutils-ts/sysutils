@@ -239,6 +239,35 @@ Measured on a Surface Pro X (Windows 11 ARM64 + WSL2 Ubuntu ARM64, Node.js
 The in-process backend is roughly **4–35× faster** than the CLI spawn path and
 `ps-list` on Linux, and it supports Windows ARM64 where `ps-list` does not.
 
+### Cold-start benchmark
+
+`packages/ps/scripts/benchmark.ts` can also measure first-call latency by
+spawning a fresh Node.js process for each sample. This captures fresh-process
+startup/JIT overhead (every backend) and native CLI spawn overhead (only the
+`dotnet` backend), plus the `ps-list` startup cost when `--compare` is used.
+
+The package targets Node.js ≥ 24, which can execute `.ts` files directly. If you
+are on an older Node version, run the script via `npx tsx` instead:
+
+```bash
+node packages/ps/scripts/benchmark.ts \
+  --cold 5 \
+  --runs 1 \
+  --warmup 0 \
+  --fields pid,ppid,name \
+  --svg benchmark-cold.svg
+```
+
+The `--cold <n>` flag spawns `<n>` fresh Node.js processes per backend and
+measures one backend call in each process. The `--runs` and `--warmup` flags
+are ignored in cold mode, so you can omit them or set them to `--runs 1
+--warmup 0` for clarity.
+
+> **Note:** The `dotnet-nodeapi` cold-start samples load `node-api-dotnet` in
+> each child. On Node.js ≥ 24.14.0 this may trigger the shutdown bug described
+> in [Backends](#backends), so cold `dotnet-nodeapi` numbers are most useful
+> on Node 24.13.x or 22.x.
+
 ## Contributing
 
 This package is developed as part of the `@sysutils` monorepo. See the
