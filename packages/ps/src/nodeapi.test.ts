@@ -50,6 +50,28 @@ test("dotnet-nodeapi selection, fallback, and explicit execution", async (t) => 
   }
 
   try {
+    // 0. Preload with a missing assembly throws a descriptive error.
+    const missingBinaryPath = path.join(testDir, "missing.dll");
+    process.env.SYSUTILS_PS_TEST_NODEAPI_PATH = missingBinaryPath;
+    try {
+      let threw = false;
+      try {
+        await preload({ backend: "dotnet-nodeapi" });
+      } catch (err) {
+        threw = true;
+        assert.ok(err instanceof Error);
+        assert.ok(
+          err.message.includes("dotnet-nodeapi") &&
+            (err.message.includes("missing") ||
+              err.message.includes("not installed")),
+          `Expected descriptive missing-binary/runtime error, got: ${(err as Error).message}`,
+        );
+      }
+      assert.ok(threw, "preload should throw when the nodeapi binary is missing");
+    } finally {
+      process.env.SYSUTILS_PS_TEST_NODEAPI_PATH = testBinaryPath;
+    }
+
     // 1. Env-selected nodeapi with a missing assembly falls back to the dotnet CLI.
     setTestBinary(undefined);
     process.env.SYSUTILS_PS_BACKEND = "dotnet-nodeapi";

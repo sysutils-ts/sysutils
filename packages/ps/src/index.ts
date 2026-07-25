@@ -209,8 +209,8 @@ function createNodeapiStream(args: {
     read() {},
   }) as ProcessStream;
 
-  // Defer the in-process work so callers that consume via the stream/async
-  // iterator do not block the event loop while the .NET host is loading.
+  // Defer stream setup so callers receive the stream immediately; the actual
+  // .NET host and addon loading still happens synchronously inside the worker.
   setImmediate(() => {
     (async () => {
       try {
@@ -389,8 +389,15 @@ async function listProcessesInternal(
   tried.add("dotnet-nodeapi");
   try {
     return await collectStream(createProcessStream(options));
-  } catch {
-    return listProcessesInternal({ ...options, backend: "auto" }, tried);
+  } catch (err) {
+    try {
+      return await listProcessesInternal({ ...options, backend: "auto" }, tried);
+    } catch {
+      throw new Error(
+        `Backend "dotnet-nodeapi" failed and no fallback is available.`,
+        { cause: err instanceof Error ? err : new Error(String(err)) },
+      );
+    }
   }
 }
 

@@ -85,15 +85,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p benchmark-output
-          COMPARE_FLAG=""
-          if [ "$SYSUTILS_PS_BENCHMARK_COMPARE" = "1" ]; then
-            COMPARE_FLAG="--compare"
-          fi
           node packages/ps/scripts/benchmark.ts \
             --runs "$BENCHMARK_RUNS" \
             --warmup "$BENCHMARK_WARMUP" \
             --fields "$BENCHMARK_FIELDS" \
-            $COMPARE_FLAG \
             --svg "benchmark-output/benchmark-${{ matrix.os }}.svg"
 
       - name: Upload SVG artifact
@@ -105,15 +100,10 @@ jobs:
       - name: Run cold-start benchmark
         shell: bash
         run: |
-          COMPARE_FLAG=""
-          if [ "$SYSUTILS_PS_BENCHMARK_COMPARE" = "1" ]; then
-            COMPARE_FLAG="--compare"
-          fi
           node packages/ps/scripts/benchmark.ts \
             --runs 1 \
             --warmup 0 \
             --fields "$BENCHMARK_FIELDS" \
-            $COMPARE_FLAG \
             --svg "benchmark-output/benchmark-cold-${{ matrix.os }}.svg"
 
       - name: Upload cold-start SVG artifact

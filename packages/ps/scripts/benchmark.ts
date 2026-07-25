@@ -435,13 +435,16 @@ ${compareNote}
 </p>
 <p>
   <strong>About the in-process backend:</strong> the first call loads the .NET
-  runtime and the native addon, which can take 50–150 ms on a cold start (use
-  <code>--runs 1 --warmup 0</code> to measure it). If you plan to call
-  <code>listProcesses</code> repeatedly, use
+  runtime and the native addon, which can take 50–150 ms on a cold start. If you
+  plan to call <code>listProcesses</code> repeatedly, use
   <code>await preload({ backend: "dotnet-nodeapi" })</code> during startup to
-  pay that cost up front. The numbers above are measured after
-  <code>${meta.warmup}</code> warmup runs, so they reflect steady-state
-  performance. Choose the backend that matches your workload:
+  pay that cost up front.
+  ${
+    meta.warmup > 0
+      ? `The numbers above are measured after <code>${meta.warmup}</code> warmup runs, so they reflect steady-state performance.`
+      : `No warmup runs were performed, so the numbers above include the cold-start cost.`
+  }
+  Choose the backend that matches your workload:
 </p>
 <ul>
   <li>
