@@ -332,6 +332,7 @@ async function loadDotnetNodeapi(binaryPath: string): Promise<DotnetModule> {
     return dotnet.require(binaryPath);
   })();
 
+  promise.catch(() => dotnetAddonPromises.delete(binaryPath));
   dotnetAddonPromises.set(binaryPath, promise);
   return promise;
 }
