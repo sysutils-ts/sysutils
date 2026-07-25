@@ -417,6 +417,13 @@ function renderHtml(meta: Meta, results: Result[]): string {
 </p>`
     : "";
 
+  const warmupNote =
+    meta.warmup > 0
+      ? "The numbers above are measured after <code>" +
+        escapeHtml(String(meta.warmup)) +
+        "</code> warmup runs, so they reflect steady-state performance."
+      : "No warmup runs were performed, so the numbers above include the cold-start cost.";
+
   return `
 <h2>@sysutils/ps benchmark — ${escapeHtml(meta.rid)}</h2>
 <p>
@@ -438,13 +445,8 @@ ${compareNote}
   runtime and the native addon, which can take 50–150 ms on a cold start. If you
   plan to call <code>listProcesses</code> repeatedly, use
   <code>await preload({ backend: "dotnet-nodeapi" })</code> during startup to
-  pay that cost up front.
-  ${
-    meta.warmup > 0
-      ? `The numbers above are measured after <code>${meta.warmup}</code> warmup runs, so they reflect steady-state performance.`
-      : `No warmup runs were performed, so the numbers above include the cold-start cost.`
-  }
-  Choose the backend that matches your workload:
+  pay that cost up front. ${warmupNote} Choose the backend that matches your
+  workload:
 </p>
 <ul>
   <li>
