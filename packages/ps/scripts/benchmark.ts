@@ -325,7 +325,14 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
 
 function resolveColdTimeoutMs(): number {
   const configured = Number(process.env.SYSUTILS_PS_COLD_TIMEOUT_MS);
-  return Number.isFinite(configured) && configured > 0 ? configured : 30_000;
+  if (
+    Number.isSafeInteger(configured) &&
+    configured > 0 &&
+    configured <= 2_147_483_647
+  ) {
+    return configured;
+  }
+  return 30_000;
 }
 
 const COLD_SAMPLE_TIMEOUT_MS = resolveColdTimeoutMs();
