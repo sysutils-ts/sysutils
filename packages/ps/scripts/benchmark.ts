@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 interface Stats {
@@ -19,6 +21,7 @@ interface Meta {
   fields: string[];
   runs: number;
   warmup: number;
+  cold?: number;
   date: string;
 }
 
@@ -59,6 +62,9 @@ const KNOWN_FLAGS = new Set([
   "--summary",
   "--svg",
   "--compare",
+  "--cold",
+  "--backend",
+  "--cold-sample",
 ]);
 
 const runsArg = parseInteger(
@@ -86,6 +92,12 @@ const svgFile = resolveCliOutputPath(
 );
 const compare =
   hasArg("--compare") || process.env.SYSUTILS_PS_BENCHMARK_COMPARE === "1";
+const coldArg = parseInteger(
+  getArg("--cold") ?? "0",
+  0,
+  "--cold",
+  0,
+);
 
 function getArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);
@@ -226,13 +238,19 @@ async function runOne(
   return { times, result, error };
 }
 
-function buildMeta(fields: string[]): Meta {
+function buildMeta(
+  fields: string[],
+  runs: number,
+  warmup: number,
+  cold: number,
+): Meta {
   return {
     node: process.version,
     rid: `${process.platform}-${process.arch}`,
     fields,
-    runs: runsArg,
-    warmup: warmupArg,
+    runs,
+    warmup,
+    cold: cold || undefined,
     date: new Date().toISOString(),
   };
 }
@@ -305,13 +323,239 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
   }
 }
 
+function resolveColdTimeoutMs(): number {
+  const configured = Number(process.env.SYSUTILS_PS_COLD_TIMEOUT_MS);
+  if (
+    Number.isSafeInteger(configured) &&
+    configured > 0 &&
+    configured <= 2_147_483_647
+  ) {
+    return configured;
+  }
+  return 30_000;
+}
+
+const COLD_SAMPLE_TIMEOUT_MS = resolveColdTimeoutMs();
+
+async function spawnColdSample(
+  backend: Backend,
+  fields: string[],
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const child = spawn(
+    process.execPath,
+    [
+      import.meta.filename,
+      "--cold-sample",
+      "--backend",
+      backend.id,
+      "--fields",
+      fields.join(","),
+    ],
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, GITHUB_STEP_SUMMARY: "" },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    },
+  );
+
+  let stdout = "";
+  let stderr = "";
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      stderr += "cold sample timed out\n";
+      child.kill("SIGKILL");
+      resolve({ code: null, stdout, stderr });
+    }, COLD_SAMPLE_TIMEOUT_MS);
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      stderr += `${err.message}\n`;
+      resolve({ code: null, stdout, stderr });
+    });
+
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+function parseColdSampleOutput(line: string): {
+  duration: number;
+  count: number | null;
+} {
+  const parsed = JSON.parse(line) as {
+    duration?: number;
+    count?: number | null;
+    error?: string;
+  };
+  if (parsed.error) throw new Error(parsed.error);
+  if (typeof parsed.duration !== "number") {
+    throw new Error(`Invalid cold sample output: ${line}`);
+  }
+  return { duration: parsed.duration, count: parsed.count ?? null };
+}
+
+async function runOneColdSample(
+  backend: Backend,
+  fields: string[],
+): Promise<{ duration: number; count: number | null }> {
+  const { code, stdout, stderr } = await spawnColdSample(backend, fields);
+  const line = stdout.trim().split("\n").pop() ?? stdout.trim();
+
+  let message: string | undefined;
+  try {
+    const parsed = JSON.parse(line) as { error?: string };
+    message = parsed.error;
+  } catch {
+    // Ignore malformed JSON; fall through to stderr/code fallback.
+  }
+
+  if (code !== 0) {
+    throw new Error(message || stderr.trim() || `cold sample exited with code ${code}`);
+  }
+
+  if (message) {
+    throw new Error(message);
+  }
+
+  return parseColdSampleOutput(line);
+}
+
+async function runColdSamples(
+  backend: Backend,
+  fields: string[],
+  samples: number,
+): Promise<{ times: number[]; result: unknown; error: Error | undefined }> {
+  const times: number[] = [];
+  let result: unknown;
+
+  for (let i = 0; i < samples; i++) {
+    try {
+      const { duration, count } = await runOneColdSample(backend, fields);
+      times.push(duration);
+      result = Array.from({ length: count ?? 0 });
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      return { times, result, error };
+    }
+  }
+
+  return { times, result, error: undefined };
+}
+
+async function runColdSample(): Promise<void> {
+  const backend = getArg("--backend");
+  if (!backend) {
+    console.error("Missing --backend for cold sample.");
+    process.exit(1);
+  }
+
+  const fields = parseFields(getArg("--fields") ?? "");
+  await maybeHangForTest();
+
+  const start = performance.now();
+  const { result, error } = await runColdBackend(backend, fields);
+  const duration = performance.now() - start;
+
+  const output = error
+    ? { error: error.message }
+    : { duration, count: Array.isArray(result) ? result.length : null };
+  process.stdout.write(JSON.stringify(output) + "\n", () => {
+    process.exit(error ? 1 : 0);
+  });
+}
+
+async function maybeHangForTest(): Promise<void> {
+  const hangMs = Number(process.env.SYSUTILS_PS_TEST_COLD_HANG_MS) || 0;
+  if (hangMs > 0) {
+    await sleep(hangMs);
+  }
+}
+
+type ColdBackendResult =
+  | { result: unknown; error?: never }
+  | { result?: never; error: Error };
+
+async function runColdBackend(
+  backend: string,
+  fields: string[],
+): Promise<ColdBackendResult> {
+  try {
+    const result = await (backend === "ps-list"
+      ? runColdPsList()
+      : runColdNative(backend, fields));
+    return { result } as ColdBackendResult;
+  } catch (e) {
+    return { error: e instanceof Error ? e : new Error(String(e)) };
+  }
+}
+
+async function runColdNative(backend: string, fields: string[]): Promise<unknown> {
+  const ps = (await import(pathToFileURL(distIndex).href)) as PsModule;
+  return ps.listProcesses({ backend, fields });
+}
+
+async function runColdPsList(): Promise<unknown> {
+  const mod = (await import("ps-list")) as { default?: unknown };
+  const psList = mod.default ?? mod;
+  if (typeof psList !== "function") {
+    throw new TypeError("ps-list did not export a callable function");
+  }
+  return (psList as () => Promise<unknown[]>)();
+}
+
 async function runBenchmarks(
   backends: Backend[],
+  fields: string[],
   runs: number,
   warmup: number,
 ): Promise<Result[]> {
   const results: Result[] = [];
   for (const backend of backends) {
+    if (coldArg > 0) {
+      const sampleLabel = `${coldArg} fresh-process sample${coldArg === 1 ? "" : "s"}`;
+      process.stderr.write(
+        `Benchmarking ${backend.name} cold start (${sampleLabel})... `,
+      );
+      const { times, result, error } = await runColdSamples(
+        backend,
+        fields,
+        coldArg,
+      );
+      if (error) {
+        process.stderr.write(`failed: ${error.message}\n`);
+        results.push({ ...backend, error: error.message });
+        continue;
+      }
+      process.stderr.write("done\n");
+      const s = stats(times);
+      results.push({
+        ...backend,
+        stats: s,
+        count: Array.isArray(result) ? result.length : "n/a",
+      });
+      continue;
+    }
+
     const warmupLabel = `${warmup} warmup${warmup === 1 ? "" : "s"}`;
     process.stderr.write(
       `Benchmarking ${backend.name} (${runs} runs, ${warmupLabel})... `,
@@ -371,8 +615,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const results = await runBenchmarks(backends, runsArg, warmupArg);
-  const meta = buildMeta(fields);
+  const runs = coldArg > 0 ? coldArg : runsArg;
+  const warmup = coldArg > 0 ? 0 : warmupArg;
+  const results = await runBenchmarks(backends, fields, runs, warmup);
+  const meta = buildMeta(fields, runs, warmup, coldArg);
   const payload = { meta, results };
 
   // Native backend failures are real measurement failures; the optional ps-list
@@ -417,6 +663,20 @@ function renderHtml(meta: Meta, results: Result[]): string {
 </p>`
     : "";
 
+  const coldNote =
+    meta.cold && meta.cold > 0
+      ? " Each sample ran in a fresh Node.js process to capture the true cold-start cost."
+      : "";
+
+  const warmupNote =
+    meta.warmup > 0
+      ? "The numbers above are measured after <code>" +
+        escapeHtml(String(meta.warmup)) +
+        "</code> warmup runs, so they reflect steady-state performance."
+      : "No warmup runs were performed, so the numbers above include the cold-start cost.";
+
+  const note = warmupNote + coldNote;
+
   return `
 <h2>@sysutils/ps benchmark — ${escapeHtml(meta.rid)}</h2>
 <p>
@@ -433,6 +693,35 @@ ${compareNote}
   in-process <code>node-api-dotnet</code> backend when available, so no external
   <code>ps</code> or <code>tasklist</code> commands are spawned.
 </p>
+<p>
+  <strong>About the in-process backend:</strong> the first call loads the .NET
+  runtime and the native addon, which can take 50–150 ms on a cold start. If you
+  plan to call <code>listProcesses</code> repeatedly, use
+  <code>await preload({ backend: "dotnet-nodeapi" })</code> during startup to
+  pay that cost up front. ${note} Choose the backend that matches your workload:
+</p>
+<ul>
+  <li>
+    <strong>/proc (Linux):</strong> best for one-off calls on Linux when the
+    package is used without spawning; it reads <code>/proc</code> directly and
+    avoids both CLI spawn and node-api startup overhead.
+  </li>
+  <li>
+    <strong>CLI:</strong> best for one-off calls on non-Linux systems or when
+    the <code>/proc</code> and node-api backends are unavailable.
+  </li>
+  <li>
+    <strong>In-process:</strong> best when you call
+    <code>listProcesses</code> repeatedly in the same Node.js process — the
+    addon stays loaded and subsequent calls are typically faster than spawning
+    a CLI process or running <code>ps-list</code>.
+  </li>
+  <li>
+    <strong>ps-list:</strong> a pure-JS alternative that is convenient for
+    small scripts, but it may spawn external commands and always returns all
+    fields.
+  </li>
+</ul>
 <table>
   <thead>
     <tr>
@@ -462,7 +751,12 @@ function renderSvg(meta: Meta, results: Result[]): string {
   const chartHeight = results.length * groupHeight;
   const height = margin.top + chartHeight + margin.bottom;
 
-  const title = `${meta.rid} — ${meta.fields.join(',')} — ${meta.runs} runs`;
+  let title: string;
+  if (meta.cold && meta.cold > 0) {
+    title = `${meta.rid} — cold start — ${meta.fields.join(',')} — ${meta.cold} sample${meta.cold === 1 ? "" : "s"}`;
+  } else {
+    title = `${meta.rid} — ${meta.fields.join(',')} — ${meta.runs} runs`;
+  }
   const subtitle = `${meta.node} / ${meta.date.slice(0, 19).replace('T', ' ')}`;
 
   const metrics: { key: 'mean' | 'p95' | 'p99'; label: string; color: string }[] = [
@@ -611,7 +905,11 @@ function truncate(s: string, max: number): string {
 }
 
 try {
-  await main();
+  if (hasArg("--cold-sample")) {
+    await runColdSample();
+  } else {
+    await main();
+  }
 } catch (err) {
   console.error(err);
   process.exit(1);

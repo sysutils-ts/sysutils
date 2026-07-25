@@ -25,7 +25,9 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: lts/*
+          # node-api-dotnet 0.9.21 has an open shutdown bug on Node >= 24.14.0
+          # that can keep the .NET host alive and OOM after the tests finish.
+          node-version: 24.13.0
           cache: npm
       - uses: actions/setup-dotnet@v6
         with:
@@ -35,6 +37,9 @@ jobs:
       - name: Remove prebuilt native platform packages so CI binaries are tested
         run: node -e "const fs=require('fs'),path=require('path');['node_modules/@sysutils','packages/ps/node_modules/@sysutils'].forEach(d=>{const p=path.resolve(d);if(fs.existsSync(p))fs.rmSync(p,{recursive:true,force:true});});"
         shell: bash
+      # Pre-warm the NuGet migration logic before any parallel dotnet publish
+      # calls to avoid the race condition described in dotnet/runtime#91987.
+      - run: dotnet nuget --version
       - run: node node_modules/nx/dist/bin/nx.js run-many -t typecheck -p @sysutils/ps
         env:
           NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
