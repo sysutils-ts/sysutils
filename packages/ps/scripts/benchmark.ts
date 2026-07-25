@@ -322,6 +322,8 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
   }
 }
 
+const COLD_SAMPLE_TIMEOUT_MS = 30_000;
+
 async function spawnColdSample(
   backend: Backend,
   fields: string[],
@@ -345,21 +347,41 @@ async function spawnColdSample(
   );
 
   let stdout = "";
-  child.stdout.setEncoding("utf8");
-  child.stdout.on("data", (chunk: string) => {
-    stdout += chunk;
-  });
-
   let stderr = "";
-  child.stderr.setEncoding("utf8");
-  child.stderr.on("data", (chunk: string) => {
-    stderr += chunk;
-  });
 
-  const code = await new Promise<number | null>((resolve) => {
-    child.on("close", resolve);
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      stderr += "cold sample timed out\n";
+      child.kill();
+    }, COLD_SAMPLE_TIMEOUT_MS);
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      stderr += `${err.message}\n`;
+      resolve({ code: null, stdout, stderr });
+    });
+
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr });
+    });
   });
-  return { code, stdout, stderr };
 }
 
 function parseColdSampleOutput(line: string): {
@@ -440,7 +462,7 @@ async function runColdSample(): Promise<void> {
   let error: Error | undefined;
   try {
     result = await (backend === "ps-list"
-      ? runColdPsList(fields)
+      ? runColdPsList()
       : runColdNative(backend, fields));
   } catch (e) {
     error = e instanceof Error ? e : new Error(String(e));
@@ -460,24 +482,13 @@ async function runColdNative(backend: string, fields: string[]): Promise<unknown
   return ps.listProcesses({ backend, fields });
 }
 
-async function runColdPsList(fields: string[]): Promise<unknown> {
+async function runColdPsList(): Promise<unknown> {
   const mod = (await import("ps-list")) as { default?: unknown };
   const psList = mod.default ?? mod;
   if (typeof psList !== "function") {
     throw new TypeError("ps-list did not export a callable function");
   }
-  const result = await (psList as () => Promise<unknown[]>)();
-  return result.map((row) => pickFields(row, fields));
-}
-
-function pickFields(row: unknown, fields: string[]): unknown {
-  if (row == null || typeof row !== "object") return row;
-  const record = row as Record<string, unknown>;
-  const picked: Record<string, unknown> = {};
-  for (const field of fields) {
-    picked[field] = record[field];
-  }
-  return picked;
+  return (psList as () => Promise<unknown[]>)();
 }
 
 async function runBenchmarks(
