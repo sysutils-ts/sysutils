@@ -322,6 +322,74 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
   }
 }
 
+async function spawnColdSample(
+  backend: Backend,
+  fields: string[],
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const child = spawn(
+    process.execPath,
+    [
+      import.meta.filename,
+      "--cold-sample",
+      "--backend",
+      backend.id,
+      "--fields",
+      fields.join(","),
+    ],
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, GITHUB_STEP_SUMMARY: "" },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    },
+  );
+
+  let stdout = "";
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    stdout += chunk;
+  });
+
+  let stderr = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+
+  const code = await new Promise<number | null>((resolve) => {
+    child.on("close", resolve);
+  });
+  return { code, stdout, stderr };
+}
+
+function parseColdSampleOutput(line: string): {
+  duration: number;
+  count: number | null;
+} {
+  const parsed = JSON.parse(line) as {
+    duration?: number;
+    count?: number | null;
+    error?: string;
+  };
+  if (parsed.error) throw new Error(parsed.error);
+  if (typeof parsed.duration !== "number") {
+    throw new Error(`Invalid cold sample output: ${line}`);
+  }
+  return { duration: parsed.duration, count: parsed.count ?? null };
+}
+
+async function runOneColdSample(
+  backend: Backend,
+  fields: string[],
+): Promise<{ duration: number; count: number | null }> {
+  const { code, stdout, stderr } = await spawnColdSample(backend, fields);
+  const line = stdout.trim().split("\n").pop() ?? stdout.trim();
+  if (code !== 0) {
+    throw new Error(stderr.trim() || `cold sample exited with code ${code}`);
+  }
+  return parseColdSampleOutput(line);
+}
+
 async function runColdSamples(
   backend: Backend,
   fields: string[],
@@ -329,75 +397,19 @@ async function runColdSamples(
 ): Promise<{ times: number[]; result: unknown; error: Error | undefined }> {
   const times: number[] = [];
   let result: unknown;
-  let error: Error | undefined;
 
   for (let i = 0; i < samples; i++) {
-    const child = spawn(
-      process.execPath,
-      [
-        import.meta.filename,
-        "--cold-sample",
-        "--backend",
-        backend.id,
-        "--fields",
-        fields.join(","),
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          GITHUB_STEP_SUMMARY: "",
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      },
-    );
-
-    let stdout = "";
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-
-    let stderr = "";
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-
-    const code = await new Promise<number | null>((resolve) => {
-      child.on("close", resolve);
-    });
-
-    const line = stdout.trim().split("\n").pop() ?? stdout.trim();
-    if (code !== 0) {
-      error = new Error(stderr.trim() || `cold sample exited with code ${code}`);
-      break;
-    }
-
     try {
-      const parsed = JSON.parse(line) as {
-        duration?: number;
-        count?: number | null;
-        error?: string;
-      };
-      if (parsed.error) {
-        error = new Error(parsed.error);
-        break;
-      }
-      if (typeof parsed.duration !== "number") {
-        error = new Error(`Invalid cold sample output: ${line}`);
-        break;
-      }
-      times.push(parsed.duration);
-      result = Array.from({ length: parsed.count ?? 0 });
-    } catch {
-      error = new Error(`Invalid cold sample output: ${line}`);
-      break;
+      const { duration, count } = await runOneColdSample(backend, fields);
+      times.push(duration);
+      result = Array.from({ length: count ?? 0 });
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      return { times, result, error };
     }
   }
 
-  return { times, result, error };
+  return { times, result, error: undefined };
 }
 
 async function runColdSample(): Promise<void> {
