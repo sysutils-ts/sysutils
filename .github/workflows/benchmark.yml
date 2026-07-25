@@ -100,7 +100,9 @@ jobs:
       - name: Run cold-start benchmark
         shell: bash
         run: |
+          mkdir -p benchmark-output
           node packages/ps/scripts/benchmark.ts \
+            --cold 5 \
             --runs 1 \
             --warmup 0 \
             --fields "$BENCHMARK_FIELDS" \

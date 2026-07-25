@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -19,6 +20,7 @@ interface Meta {
   fields: string[];
   runs: number;
   warmup: number;
+  cold?: number;
   date: string;
 }
 
@@ -59,6 +61,9 @@ const KNOWN_FLAGS = new Set([
   "--summary",
   "--svg",
   "--compare",
+  "--cold",
+  "--backend",
+  "--cold-sample",
 ]);
 
 const runsArg = parseInteger(
@@ -86,6 +91,12 @@ const svgFile = resolveCliOutputPath(
 );
 const compare =
   hasArg("--compare") || process.env.SYSUTILS_PS_BENCHMARK_COMPARE === "1";
+const coldArg = parseInteger(
+  getArg("--cold") ?? "0",
+  0,
+  "--cold",
+  0,
+);
 
 function getArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);
@@ -226,13 +237,19 @@ async function runOne(
   return { times, result, error };
 }
 
-function buildMeta(fields: string[]): Meta {
+function buildMeta(
+  fields: string[],
+  runs: number,
+  warmup: number,
+  cold: number,
+): Meta {
   return {
     node: process.version,
     rid: `${process.platform}-${process.arch}`,
     fields,
-    runs: runsArg,
-    warmup: warmupArg,
+    runs,
+    warmup,
+    cold: cold || undefined,
     date: new Date().toISOString(),
   };
 }
@@ -305,13 +322,145 @@ async function maybeAddPsListBackend(backends: Backend[]): Promise<void> {
   }
 }
 
+async function runColdSamples(
+  backend: Backend,
+  fields: string[],
+  samples: number,
+): Promise<{ times: number[]; result: unknown; error: Error | undefined }> {
+  const times: number[] = [];
+  let result: unknown;
+  let error: Error | undefined;
+
+  for (let i = 0; i < samples; i++) {
+    const child = spawn(
+      process.execPath,
+      [
+        import.meta.filename,
+        "--cold-sample",
+        "--backend",
+        backend.id,
+        "--fields",
+        fields.join(","),
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          GITHUB_STEP_SUMMARY: "",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
+
+    let stdout = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    const code = await new Promise<number | null>((resolve) => {
+      child.on("close", resolve);
+    });
+
+    const line = stdout.trim().split("\n").pop() ?? stdout.trim();
+    if (code !== 0) {
+      error = new Error(stderr.trim() || `cold sample exited with code ${code}`);
+      break;
+    }
+
+    try {
+      const parsed = JSON.parse(line) as {
+        duration?: number;
+        count?: number | null;
+        error?: string;
+      };
+      if (parsed.error) {
+        error = new Error(parsed.error);
+        break;
+      }
+      if (typeof parsed.duration !== "number") {
+        error = new Error(`Invalid cold sample output: ${line}`);
+        break;
+      }
+      times.push(parsed.duration);
+      result = Array.from({ length: parsed.count ?? 0 });
+    } catch {
+      error = new Error(`Invalid cold sample output: ${line}`);
+      break;
+    }
+  }
+
+  return { times, result, error };
+}
+
+async function runColdSample(): Promise<void> {
+  const backend = getArg("--backend");
+  if (!backend) {
+    console.error("Missing --backend for cold sample.");
+    process.exit(1);
+  }
+
+  const fields = parseFields(getArg("--fields") ?? "");
+  const ps = (await import(pathToFileURL(distIndex).href)) as PsModule;
+
+  const start = performance.now();
+  let result: unknown;
+  let error: Error | undefined;
+  try {
+    result = await ps.listProcesses({ backend, fields });
+  } catch (e) {
+    error = e instanceof Error ? e : new Error(String(e));
+  }
+  const duration = performance.now() - start;
+
+  const output = error
+    ? { error: error.message }
+    : { duration, count: Array.isArray(result) ? result.length : null };
+  process.stdout.write(JSON.stringify(output) + "\n", () => {
+    process.exit(error ? 1 : 0);
+  });
+}
+
 async function runBenchmarks(
   backends: Backend[],
+  fields: string[],
   runs: number,
   warmup: number,
 ): Promise<Result[]> {
   const results: Result[] = [];
   for (const backend of backends) {
+    if (coldArg > 0) {
+      const sampleLabel = `${coldArg} fresh-process sample${coldArg === 1 ? "" : "s"}`;
+      process.stderr.write(
+        `Benchmarking ${backend.name} cold start (${sampleLabel})... `,
+      );
+      const { times, result, error } = await runColdSamples(
+        backend,
+        fields,
+        coldArg,
+      );
+      if (error) {
+        process.stderr.write(`failed: ${error.message}\n`);
+        results.push({ ...backend, error: error.message });
+        continue;
+      }
+      process.stderr.write("done\n");
+      const s = stats(times);
+      results.push({
+        ...backend,
+        stats: s,
+        count: Array.isArray(result) ? result.length : "n/a",
+      });
+      continue;
+    }
+
     const warmupLabel = `${warmup} warmup${warmup === 1 ? "" : "s"}`;
     process.stderr.write(
       `Benchmarking ${backend.name} (${runs} runs, ${warmupLabel})... `,
@@ -371,8 +520,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const results = await runBenchmarks(backends, runsArg, warmupArg);
-  const meta = buildMeta(fields);
+  const runs = coldArg > 0 ? coldArg : runsArg;
+  const warmup = coldArg > 0 ? 0 : warmupArg;
+  const results = await runBenchmarks(backends, fields, runs, warmup);
+  const meta = buildMeta(fields, runs, warmup, coldArg);
   const payload = { meta, results };
 
   // Native backend failures are real measurement failures; the optional ps-list
@@ -417,12 +568,19 @@ function renderHtml(meta: Meta, results: Result[]): string {
 </p>`
     : "";
 
+  const coldNote =
+    meta.cold && meta.cold > 0
+      ? " Each sample ran in a fresh Node.js process to capture the true cold-start cost."
+      : "";
+
   const warmupNote =
     meta.warmup > 0
       ? "The numbers above are measured after <code>" +
         escapeHtml(String(meta.warmup)) +
         "</code> warmup runs, so they reflect steady-state performance."
       : "No warmup runs were performed, so the numbers above include the cold-start cost.";
+
+  const note = warmupNote + coldNote;
 
   return `
 <h2>@sysutils/ps benchmark — ${escapeHtml(meta.rid)}</h2>
@@ -445,13 +603,17 @@ ${compareNote}
   runtime and the native addon, which can take 50–150 ms on a cold start. If you
   plan to call <code>listProcesses</code> repeatedly, use
   <code>await preload({ backend: "dotnet-nodeapi" })</code> during startup to
-  pay that cost up front. ${warmupNote} Choose the backend that matches your
-  workload:
+  pay that cost up front. ${note} Choose the backend that matches your workload:
 </p>
 <ul>
   <li>
-    <strong>CLI:</strong> best for one-off calls from short-lived scripts or
-    when the node-api addon is unavailable.
+    <strong>/proc (Linux):</strong> best for one-off calls on Linux when the
+    package is used without spawning; it reads <code>/proc</code> directly and
+    avoids both CLI spawn and node-api startup overhead.
+  </li>
+  <li>
+    <strong>CLI:</strong> best for one-off calls on non-Linux systems or when
+    the <code>/proc</code> and node-api backends are unavailable.
   </li>
   <li>
     <strong>In-process:</strong> best when you call
@@ -494,7 +656,10 @@ function renderSvg(meta: Meta, results: Result[]): string {
   const chartHeight = results.length * groupHeight;
   const height = margin.top + chartHeight + margin.bottom;
 
-  const title = `${meta.rid} — ${meta.fields.join(',')} — ${meta.runs} runs`;
+  const title =
+    meta.cold && meta.cold > 0
+      ? `${meta.rid} — cold start — ${meta.fields.join(',')} — ${meta.cold} sample${meta.cold === 1 ? "" : "s"}`
+      : `${meta.rid} — ${meta.fields.join(',')} — ${meta.runs} runs`;
   const subtitle = `${meta.node} / ${meta.date.slice(0, 19).replace('T', ' ')}`;
 
   const metrics: { key: 'mean' | 'p95' | 'p99'; label: string; color: string }[] = [
@@ -643,7 +808,11 @@ function truncate(s: string, max: number): string {
 }
 
 try {
-  await main();
+  if (hasArg("--cold-sample")) {
+    await runColdSample();
+  } else {
+    await main();
+  }
 } catch (err) {
   console.error(err);
   process.exit(1);
