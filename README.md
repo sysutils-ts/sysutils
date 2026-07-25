@@ -74,6 +74,10 @@ README:
 
 ![@sysutils/ps benchmark](https://sysutils-ts.github.io/sysutils/benchmark.svg)
 
+The same workflow also runs a cold-start benchmark (fresh Node process per
+sample) and uploads both `benchmark-*.svg` and `benchmark-cold-*.svg` as
+artifacts. To run it locally, see `packages/ps/scripts/benchmark.ts`.
+
 > The badge is published to the `gh-pages` branch by the `Benchmark` workflow.
 
 ## Design
