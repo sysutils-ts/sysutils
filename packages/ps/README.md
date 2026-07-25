@@ -254,9 +254,10 @@ node packages/ps/scripts/benchmark.ts \
   --svg benchmark-cold.svg
 ```
 
-The `--cold <n>` flag runs `<n>` fresh-process samples per backend. The
-`--runs` and `--warmup` values apply inside each child process, so keep them
-low when measuring cold start.
+The `--cold <n>` flag spawns `<n>` fresh Node.js processes per backend and
+measures one backend call in each process. The `--runs` and `--warmup` flags
+are ignored in cold mode, so you can omit them or set them to `--runs 1
+--warmup 0` for clarity.
 
 > **Note:** The `dotnet-nodeapi` cold-start samples load `node-api-dotnet` in
 > each child. On Node.js ≥ 24.14.0 this may trigger the shutdown bug described
