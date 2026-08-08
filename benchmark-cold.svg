@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' width='800' height='338' viewBox='0 0 800 338'>
+  <rect width='800' height='338' fill='#ffffff' stroke='#e5e7eb' stroke-width='1' rx='8' />
+  <text x='20' y='28' font-size='18' font-weight='700' fill='#111827'>@sysutils/ps benchmark</text>
+  <text x='20' y='50' font-size='12' fill='#6b7280'>linux-x64 — cold start — pid,ppid,name — 5 samples</text>
+  <rect x='558' y='40' width='12' height='12' fill='#2563eb' rx='2' />
+  <text x='576' y='50' font-size='12' fill='#4b5563'>Mean</text>
+  <rect x='632' y='40' width='12' height='12' fill='#60a5fa' rx='2' />
+  <text x='650' y='50' font-size='12' fill='#4b5563'>P95</text>
+  <rect x='706' y='40' width='12' height='12' fill='#93c5fd' rx='2' />
+  <text x='724' y='50' font-size='12' fill='#4b5563'>P99</text>
+  <line x1='230' y1='80' x2='230' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='342.5' y1='80' x2='342.5' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='455' y1='80' x2='455' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='567.5' y1='80' x2='567.5' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='680' y1='80' x2='680' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='230' y1='80' x2='230' y2='290' stroke='#d1d5db' stroke-width='1' />
+  <line x1='230' y1='290' x2='680' y2='290' stroke='#d1d5db' stroke-width='1' />
+  <text x='230' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>0 ms</text>
+  <text x='342.5' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>50 ms</text>
+  <text x='455' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>100 ms</text>
+  <text x='567.5' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>150 ms</text>
+  <text x='680' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>200 ms</text>
+  <text x='218' y='119' text-anchor='end' font-size='12' fill='#111827'>@sysutils/ps CLI</text>
+  <text x='218' y='133' text-anchor='end' font-size='10' fill='#9ca3af'>Processes: 164</text>
+  <rect x='230' y='90.5' width='45.92341665' height='13' fill='#2563eb' rx='3' />
+  <text x='281.92341665' y='101.5' font-size='11' fill='#374151'>20.410</text>
+  <rect x='230' y='108.5' width='56.11638465' height='13' fill='#60a5fa' rx='3' />
+  <text x='292.11638465' y='119.5' font-size='11' fill='#374151'>24.941</text>
+  <rect x='230' y='126.5' width='58.337443529999994' height='13' fill='#93c5fd' rx='3' />
+  <text x='294.33744353' y='137.5' font-size='11' fill='#374151'>25.928</text>
+  <text x='218' y='189' text-anchor='end' font-size='12' fill='#111827'>@sysutils/ps in-process</text>
+  <text x='218' y='203' text-anchor='end' font-size='10' fill='#9ca3af'>Processes: 163</text>
+  <rect x='230' y='160.5' width='302.91173055' height='13' fill='#2563eb' rx='3' />
+  <text x='538.91173055' y='171.5' font-size='11' fill='#374151'>134.627</text>
+  <rect x='230' y='178.5' width='321.8094477' height='13' fill='#60a5fa' rx='3' />
+  <text x='557.8094477' y='189.5' font-size='11' fill='#374151'>143.026</text>
+  <rect x='230' y='196.5' width='325.13517414' height='13' fill='#93c5fd' rx='3' />
+  <text x='561.13517414' y='207.5' font-size='11' fill='#374151'>144.505</text>
+  <text x='218' y='259' text-anchor='end' font-size='12' fill='#111827'>ps-list (full list, all fields)</text>
+  <text x='218' y='273' text-anchor='end' font-size='10' fill='#9ca3af'>Processes: 164</text>
+  <rect x='230' y='230.5' width='65.84211135000001' height='13' fill='#2563eb' rx='3' />
+  <text x='301.84211135' y='241.5' font-size='11' fill='#374151'>29.263</text>
+  <rect x='230' y='248.5' width='70.98410565' height='13' fill='#60a5fa' rx='3' />
+  <text x='306.98410565' y='259.5' font-size='11' fill='#374151'>31.548</text>
+  <rect x='230' y='266.5' width='71.43098552999999' height='13' fill='#93c5fd' rx='3' />
+  <text x='307.43098553' y='277.5' font-size='11' fill='#374151'>31.747</text>
+  <text x='780' y='322' text-anchor='end' font-size='11' fill='#9ca3af'>v24.18.0 / 2026-08-08 02:02:51</text>
+</svg>
