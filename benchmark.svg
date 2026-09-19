@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' width='800' height='338' viewBox='0 0 800 338'>
+  <rect width='800' height='338' fill='#ffffff' stroke='#e5e7eb' stroke-width='1' rx='8' />
+  <text x='20' y='28' font-size='18' font-weight='700' fill='#111827'>@sysutils/ps benchmark</text>
+  <text x='20' y='50' font-size='12' fill='#6b7280'>linux-x64 — pid,ppid,name — 20 runs</text>
+  <rect x='558' y='40' width='12' height='12' fill='#2563eb' rx='2' />
+  <text x='576' y='50' font-size='12' fill='#4b5563'>Mean</text>
+  <rect x='632' y='40' width='12' height='12' fill='#60a5fa' rx='2' />
+  <text x='650' y='50' font-size='12' fill='#4b5563'>P95</text>
+  <rect x='706' y='40' width='12' height='12' fill='#93c5fd' rx='2' />
+  <text x='724' y='50' font-size='12' fill='#4b5563'>P99</text>
+  <line x1='230' y1='80' x2='230' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='342.5' y1='80' x2='342.5' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='455' y1='80' x2='455' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='567.5' y1='80' x2='567.5' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='680' y1='80' x2='680' y2='290' stroke='#f3f4f6' stroke-width='1' />
+  <line x1='230' y1='80' x2='230' y2='290' stroke='#d1d5db' stroke-width='1' />
+  <line x1='230' y1='290' x2='680' y2='290' stroke='#d1d5db' stroke-width='1' />
+  <text x='230' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>0 ms</text>
+  <text x='342.5' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>10 ms</text>
+  <text x='455' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>20 ms</text>
+  <text x='567.5' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>30 ms</text>
+  <text x='680' y='308' text-anchor='middle' font-size='11' fill='#9ca3af'>40 ms</text>
+  <text x='218' y='119' text-anchor='end' font-size='12' fill='#111827'>@sysutils/ps CLI</text>
+  <text x='218' y='133' text-anchor='end' font-size='10' fill='#9ca3af'>Processes: 164</text>
+  <rect x='230' y='90.5' width='122.202376875' height='13' fill='#2563eb' rx='3' />
+  <text x='358.202376875' y='101.5' font-size='11' fill='#374151'>10.862</text>
+  <rect x='230' y='108.5' width='140.83999143750023' height='13' fill='#60a5fa' rx='3' />
+  <text x='376.8399914375002' y='119.5' font-size='11' fill='#374151'>12.519</text>
+  <rect x='230' y='126.5' width='158.37695628750018' height='13' fill='#93c5fd' rx='3' />
+  <text x='394.3769562875002' y='137.5' font-size='11' fill='#374151'>14.078</text>
+  <text x='218' y='189' text-anchor='end' font-size='12' fill='#111827'>@sysutils/ps in-process</text>
+  <text x='218' y='203' text-anchor='end' font-size='10' fill='#9ca3af'>Processes: 163</text>
+  <rect x='230' y='160.5' width='68.20719693749987' height='13' fill='#2563eb' rx='3' />
+  <text x='304.2071969374999' y='171.5' font-size='11' fill='#374151'>6.063</text>
+  <rect x='230' y='178.5' width='75.61970662499994' height='13' fill='#60a5fa' rx='3' />
+  <text x='311.61970662499994' y='189.5' font-size='11' fill='#374151'>6.722</text>
+  <rect x='230' y='196.5' width='85.17222832499994' height='13' fill='#93c5fd' rx='3' />
+  <text x='321.17222832499994' y='207.5' font-size='11' fill='#374151'>7.571</text>
+  <text x='218' y='259' text-anchor='end' font-size='12' fill='#111827'>ps-list (full list, all fields)</text>
+  <text x='218' y='273' text-anchor='end' font-size='10' fill='#9ca3af'>Processes: 165</text>
+  <rect x='230' y='230.5' width='212.40067499999992' height='13' fill='#2563eb' rx='3' />
+  <text x='448.4006749999999' y='241.5' font-size='11' fill='#374151'>18.880</text>
+  <rect x='230' y='248.5' width='264.8417388749996' height='13' fill='#60a5fa' rx='3' />
+  <text x='500.8417388749996' y='259.5' font-size='11' fill='#374151'>23.541</text>
+  <rect x='230' y='266.5' width='333.99480577499946' height='13' fill='#93c5fd' rx='3' />
+  <text x='569.9948057749995' y='277.5' font-size='11' fill='#374151'>29.688</text>
+  <text x='780' y='322' text-anchor='end' font-size='11' fill='#9ca3af'>v24.20.0 / 2026-09-19 04:11:51</text>
+</svg>
